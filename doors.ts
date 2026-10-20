@@ -1,72 +1,110 @@
-import { KEHIKOT_DIR, doorContext } from 'kehikot-module-protocol'
+import { DOOR_PROJECT_SAYS, doorContext } from 'kehikot-module-protocol'
 import { establishBuild, mintTicket, refuseTicket, type Reply } from 'kehikot-module-protocol/serve'
 
+import { configuredRoots, rootOf } from './file/confine.ts'
+import { describe, editingIn, report } from './file/editing.ts'
+import { open, stampOf } from './file/open.ts'
+import { save } from './file/save.ts'
+import { MAX_BYTES, MAX_PATH, bytes, str } from './file/shape.ts'
+import { resolveProject, type Resolve } from './host-ask.ts'
 import { ID, MANIFEST, VERSION } from './manifest.ts'
-import { FILE, readValue, writeValue } from './store.ts'
 
 /**
- * Every door but the page, as one pure function: `answer` takes a request and
- * returns a status and a body, or `null` for "not ours, let Vite have it".
- * `doors()` in vite.config.ts is the only thing that touches a socket, which is what lets
- * the tests call this directly.
- */
-
-/**
- * The ticket a page write has to carry.
+ * Every door but the page, as one function: `answer` takes a request and returns
+ * a status and a body, or `null` for "not ours, let Vite have it". `doors()` in
+ * vite.config.ts is the only thing that touches a socket.
  *
- * Minted per process and printed into `/app` by `doors()` in vite.config.ts,
- * so only this app's own page holds it. Loopback is a fence around the
- * machine, not around the programs on it: without this, anything that found
- * the port could write. Reads are ungated, and `/mcp` is ungated because an
- * agent has no page to have been handed a ticket by.
+ * ## Who may do what
+ *
+ *  - **The page** carries the ticket this process printed into it. It may open a
+ *    file, watch its version, SAVE it, and say what it has open. Every `/api`
+ *    route asks for the ticket — reads too, because what is read here is a
+ *    file's contents.
+ *  - **An agent** at `/mcp` has no ticket and is never handed a write. Its one
+ *    tool reads what the page said it has open. Agents edit files with their own
+ *    tools; the person saves here.
+ *  - **Anything else** on this machine that found the port gets the health check.
+ *
+ * Every project a request names is asked of the host first (`resolveDoorProject`,
+ * protocol 2.3.0): a folder the host does not hold is not read and not written,
+ * and a project that moved is followed to where it is now, so a save never lands
+ * in a folder the project left.
  */
-export const TICKET = mintTicket()
 
-/**
- * What this process is built from, and when it started. `doors()` says it in the manifest, at
- * `/healthz`, in the page and on every answer, so a page — and a host — can tell when the server
- * behind a page is no longer the one that served it.
- */
 export const BUILD = establishBuild({ version: VERSION, dir: import.meta.dirname })
 
-/** Writes are bounded; nothing this app keeps is anywhere near this size. */
-export const MAX_VALUE_BYTES = 100_000
+/** Minted per process and printed into `/app`; only this app's own page holds it. */
+export const TICKET = mintTicket()
 
 const ok = (body: unknown): Reply => ({ status: 200, body })
 const bad = (why: string, status = 400): Reply => ({ status, body: { ok: false, error: why } })
 
+const NO_ROOT_PAGE = 'Nothing has said which project is open, so there is nothing to edit.'
+const NOT_A_PROJECT_PAGE =
+  'That folder is not open as a project here. The Editor edits files of a project the app has open — never of a home '
+  + 'folder or a whole disk — and, when its operator has listed directories, only what is inside them.'
+const NOT_READ_AGENT =
+  ' The Editor answers about a project once its own page has been opened on it, and never takes a home folder or a whole '
+  + 'disk as a project.'
+const STRANGER = 'That was not asked by this app’s own page.'
+
+/** Which project a folder is, as the host has it. `setHostResolve` is for tests. */
+let hostResolve: Resolve = resolveProject
+export function setHostResolve(resolve: Resolve | null): void {
+  hostResolve = resolve ?? resolveProject
+}
+
+/** The page's project: the host's answer, then the fence's. A sentence when either says no. */
+async function pageRoot(named: string): Promise<{ ok: true; root: string } | { ok: false; reply: Reply }> {
+  if (!named) return { ok: false, reply: bad(NO_ROOT_PAGE) }
+  const project = await hostResolve(named)
+  if (!project.ok) return { ok: false, reply: bad(project.reason === 'moved' ? project.why : NOT_A_PROJECT_PAGE) }
+  /* The path the host gave back, never the one that was named: after a followed move they differ. */
+  const root = rootOf(project.path, 'page')
+  if (!root) return { ok: false, reply: bad(NOT_A_PROJECT_PAGE) }
+  return { ok: true, root }
+}
+
 /* ------------------------------------------------------------------ *
- * The MCP door, for agents. One example tool; add yours beside it.
+ * The MCP door: read-only
  * ------------------------------------------------------------------ */
+
+/** What an agent is told when it asks this door to change anything. */
+export const READ_ONLY_DOOR =
+  'The Editor’s agent door only reads. It cannot save, write, revert or reload a file. Edit files with your own tools; '
+  + 'the person saves their own edits in the Editor.'
 
 function tools() {
   return [
     {
-      name: 'read_value',
+      name: 'editing',
       description:
-        'What Editor is holding for a project. Give the absolute project directory as project; the '
-        + `value lives at <project>/${KEHIKOT_DIR}/editor/${FILE}.json.`,
-      /* The context arguments are spelled `project` and `epic` at every module's door (`DOOR_ARGUMENTS`). */
+        'Which file the person has open in the Editor container for a project, whether they have unsaved changes, and '
+        + 'why it is read-only when it is. With text: true, also the unsaved text in the editor. This is NOT the tool '
+        + 'for reading files (use your own reader) and there is no tool here for writing them: this door only reads.',
       inputSchema: {
         type: 'object',
-        properties: { project: { type: 'string', description: 'The absolute directory of the project.' } },
+        properties: {
+          project: { type: 'string', description: 'The absolute directory of the project. Required.' },
+          text: { type: 'boolean', description: 'Also return the unsaved text in the editor, when there is some.' },
+        },
         required: ['project'],
       },
-      /* Said for every tool: a caller that runs tools unasked can tell one that only reads from
-         one that writes. A tool that writes says `readOnlyHint: false`, and `destructiveHint:
-         false` when it deletes and overwrites nothing. */
-      annotations: { readOnlyHint: true },
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     },
   ]
 }
 
-function call(name: string, args: Record<string, unknown>): string {
-  if (name === 'read_value') {
-    const read = readValue(doorContext(args).project)
-    if (!read.ok) throw new Error(read.error)
-    return read.value === null ? 'Nothing is stored for that project yet.' : JSON.stringify(read.value, null, 2)
-  }
-  throw new Error(`no tool "${name.slice(0, 60)}" here`)
+async function call(name: string, args: Record<string, unknown>): Promise<string> {
+  if (name !== 'editing') throw new Error(`There is no tool "${name.slice(0, 60)}" here. ${READ_ONLY_DOOR}`)
+  const named = str(doorContext(args).project, MAX_PATH)
+  if (!named) throw new Error(DOOR_PROJECT_SAYS.unnamed)
+  const project = await hostResolve(named)
+  if (!project.ok) throw new Error(project.why)
+  const root = rootOf(project.path)
+  if (!root) throw new Error(DOOR_PROJECT_SAYS.notProject(project.path) + NOT_READ_AGENT)
+  const answer = describe(editingIn(root), args.text === true)
+  return project.movedFrom ? `${answer}\n\n${DOOR_PROJECT_SAYS.followed(project.movedFrom, project.path)}` : answer
 }
 
 interface Rpc {
@@ -75,7 +113,7 @@ interface Rpc {
   params?: { name?: string; arguments?: Record<string, unknown> }
 }
 
-function mcp(rpc: Rpc): Reply {
+async function mcp(rpc: Rpc): Promise<Reply> {
   const reply = (result: unknown) => ok({ jsonrpc: '2.0', id: rpc.id ?? null, result })
   const text = (s: string, isError = false) => reply({ content: [{ type: 'text', text: s }], ...(isError ? { isError } : {}) })
 
@@ -84,17 +122,17 @@ function mcp(rpc: Rpc): Reply {
       protocolVersion: '2025-06-18',
       capabilities: { tools: {} },
       serverInfo: { name: ID, version: VERSION },
-      instructions: MANIFEST.mcp?.about ?? '',
+      instructions:
+        'The container a person edits a file in, on a canvas. This door only reads: it says which file is open and '
+        + 'whether the person has unsaved changes. It cannot save or write; edit files with your own tools.',
     })
   }
-  /* A notification carries no id and is answered with nothing. */
   if (typeof rpc.method === 'string' && rpc.method.startsWith('notifications/')) return { status: 202, body: null }
   if (rpc.method === 'tools/list') return reply({ tools: tools() })
   if (rpc.method === 'tools/call') {
     try {
-      return text(call(String(rpc.params?.name ?? ''), rpc.params?.arguments ?? {}))
+      return text(await call(String(rpc.params?.name ?? ''), rpc.params?.arguments ?? {}))
     } catch (e) {
-      /* A refusal is an answer the agent reads, not a transport failure it retries. */
       return text(e instanceof Error ? e.message : String(e), true)
     }
   }
@@ -102,18 +140,29 @@ function mcp(rpc: Rpc): Reply {
 }
 
 /* ------------------------------------------------------------------ *
- * The doors.
+ * The doors
  * ------------------------------------------------------------------ */
 
-export function answer(
+export async function answer(
   method: string,
   path: string,
   query: URLSearchParams,
   body: Record<string, unknown> | null,
   ticket: string | null,
-): Reply | null {
+): Promise<Reply | null> {
   if (path === '/healthz') {
-    return ok({ ok: true, id: ID, version: VERSION, where: `<project>/${KEHIKOT_DIR}/editor/${FILE}.json` })
+    const configured = configuredRoots().length
+    return ok({
+      ok: true,
+      id: ID,
+      version: VERSION,
+      roots: configured === 0 ? 'the projects this app’s own page has been opened on' : `${configured} configured`,
+      ceiling: bytes(MAX_BYTES),
+      writes:
+        'the open file, on an explicit save from this app’s own page, atomically, and only when unchanged on disk since '
+        + 'the edit began; never under .kehikot/',
+      agents: 'read-only',
+    })
   }
 
   if (path === '/mcp') {
@@ -124,24 +173,50 @@ export function answer(
     return mcp(body as Rpc)
   }
 
-  if (path === '/api/value' && method === 'GET') {
-    const read = readValue(query.get('projectPath'))
-    return read.ok ? ok({ ok: true, value: read.value }) : bad(read.error)
+  if (!path.startsWith('/api/')) return null
+
+  /* Every /api route is the page's. Marked as a ticket refusal, so a page older than this server reloads. */
+  const stranger = refuseTicket(ticket, TICKET, STRANGER)
+  if (stranger) return stranger
+
+  if (path === '/api/open' && method === 'GET') {
+    const project = await pageRoot(str(query.get('projectPath'), MAX_PATH))
+    if (!project.ok) return project.reply
+    const at = str(query.get('path'), MAX_PATH)
+    if (!at) return bad('Nothing named a file to open.')
+    const opened = open(project.root, at, 'page')
+    if (opened.kind === 'refused') return bad(opened.error, 404)
+    return ok({ ok: true, root: project.root, ...opened })
   }
 
-  if (path === '/api/value' && method === 'POST') {
-    const refused = refuseTicket(ticket, TICKET)
-    if (refused) return refused
-    if (!body) return bad('that was not a request')
-    if (JSON.stringify(body.value ?? null).length > MAX_VALUE_BYTES) return bad('that value is too large to keep', 413)
-    const projectPath = typeof body.projectPath === 'string' ? body.projectPath : null
-    const written = writeValue(projectPath, body.value ?? null)
-    return written.ok ? ok({ ok: true }) : bad(written.error)
+  if (path === '/api/stamp' && method === 'GET') {
+    const project = await pageRoot(str(query.get('projectPath'), MAX_PATH))
+    if (!project.ok) return project.reply
+    const stamp = stampOf(project.root, str(query.get('path'), MAX_PATH))
+    return ok(stamp.ok ? { ok: true, version: stamp.version } : { ok: true, version: null, gone: stamp.error })
   }
 
-  /* An unknown path under /api/ is ours to refuse, not Vite's to serve as a file. */
-  if (path.startsWith('/api/')) return bad('not here', 404)
-  return null
+  if (path === '/api/save' && method === 'POST') {
+    if (!body) return bad('That was not a request.')
+    const project = await pageRoot(str(body.projectPath, MAX_PATH))
+    if (!project.ok) return project.reply
+    const at = str(body.path, MAX_PATH)
+    if (!at) return bad('Nothing named a file to save.')
+    const saved = save(project.root, at, body.text, body.base)
+    if (saved.kind === 'refused') return bad(saved.error, 409)
+    if (saved.kind === 'conflict') return { status: 409, body: { ok: false, ...saved } }
+    return ok({ ok: true, ...saved })
+  }
+
+  if (path === '/api/editing' && method === 'POST') {
+    if (!body) return bad('That was not a request.')
+    const project = await pageRoot(str(body.projectPath, MAX_PATH))
+    if (!project.ok) return project.reply
+    const refused = report(project.root, body)
+    return refused ? bad(refused, 413) : ok({ ok: true })
+  }
+
+  return bad('not here', 404)
 }
 
 export { MANIFEST }
