@@ -28,6 +28,17 @@
   --border: oklch(0.9 0 0);
   --input: oklch(0.87 0 0);
   --ring: oklch(0.65 0 0);
+  /* The editor's syntax colours, switched with the rest. */
+  --cm-keyword: oklch(0.48 0.19 300);
+  --cm-string: oklch(0.5 0.13 150);
+  --cm-number: oklch(0.55 0.15 50);
+  --cm-comment: oklch(0.55 0 0);
+  --cm-function: oklch(0.48 0.15 255);
+  --cm-type: oklch(0.5 0.11 200);
+  --cm-property: oklch(0.45 0.08 230);
+  --cm-selection: oklch(0.86 0.06 250);
+  --cm-match: oklch(0.92 0.07 100);
+  --unsaved: oklch(0.62 0.16 65);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -50,6 +61,16 @@
     --border: oklch(0.26 0 0);
     --input: oklch(0.28 0 0);
     --ring: oklch(0.5 0 0);
+  --cm-keyword: oklch(0.75 0.14 300);
+  --cm-string: oklch(0.78 0.12 150);
+  --cm-number: oklch(0.8 0.12 60);
+  --cm-comment: oklch(0.6 0 0);
+  --cm-function: oklch(0.78 0.11 250);
+  --cm-type: oklch(0.8 0.09 200);
+  --cm-property: oklch(0.8 0.06 230);
+  --cm-selection: oklch(0.38 0.07 250);
+  --cm-match: oklch(0.35 0.06 100);
+  --unsaved: oklch(0.78 0.14 75);
   }
 }
 
@@ -72,6 +93,16 @@
   --border: oklch(0.26 0 0);
   --input: oklch(0.28 0 0);
   --ring: oklch(0.5 0 0);
+  --cm-keyword: oklch(0.75 0.14 300);
+  --cm-string: oklch(0.78 0.12 150);
+  --cm-number: oklch(0.8 0.12 60);
+  --cm-comment: oklch(0.6 0 0);
+  --cm-function: oklch(0.78 0.11 250);
+  --cm-type: oklch(0.8 0.09 200);
+  --cm-property: oklch(0.8 0.06 230);
+  --cm-selection: oklch(0.38 0.07 250);
+  --cm-match: oklch(0.35 0.06 100);
+  --unsaved: oklch(0.78 0.14 75);
 }
 
 @theme inline {
@@ -102,6 +133,15 @@
 @layer base {
   * {
     border-color: var(--border);
+  }
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    margin: 0;
+    overflow: hidden;
   }
   html,
   body {
