@@ -1,6 +1,6 @@
 {
   "name": "kehikko-editor",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "description": "Edit the file the canvas points at: an explicit save, refused when the file changed on disk, atomic, confined to the project and never under .kehikot/. The agent door only reads.",
