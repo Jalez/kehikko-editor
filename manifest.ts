@@ -1,9 +1,11 @@
 import { MANIFEST_KIND, PROTOCOL, manifestSchema, type Manifest } from 'kehikot-module-protocol'
 
 import { MAX_BYTES, bytes } from './file/shape.ts'
+import pkg from './package.json'
 
 export const ID = 'kehikot.editor'
-export const VERSION = '0.1.0'
+/** The module's version: package.json's, the one place it is written. A release is tagged with it. */
+export const VERSION: string = pkg.version
 
 /**
  * Where this module would like to answer. Said once, here, and read by
