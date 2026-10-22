@@ -50,6 +50,9 @@ export const MANIFEST: Manifest = manifestSchema.parse({
   protocol: PROTOCOL,
   id: ID,
   name: 'Editor',
+  /* The icon a host draws beside the name: a key of the protocol's module icons, never a path
+     or URL; the same key Kehikot's official list gives it. */
+  icon: 'lucide:file-pen',
   version: VERSION,
   summary:
     'Edit the file the canvas points at: explicit save, refused when the file changed on disk, never under .kehikot/.',
