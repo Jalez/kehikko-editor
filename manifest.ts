@@ -65,7 +65,10 @@ export const MANIFEST: Manifest = manifestSchema.parse({
     + 'change, tell them: the Editor will refuse their save and offer a reload or a comparison. Files under .kehikot/ '
     + `are read-only there. Files over ${bytes(MAX_BYTES)} and binary files are not opened.`,
   entry: '/app',
-  modes: [{ id: 'editor', label: 'Editor', scope: 'epic' }],
+  /* What its content belongs to (protocol 2.29.0): one mode per scope, the default first. */
+  modes: [
+    { id: 'editor', label: 'Editor', scope: 'project', scopeSays: 'the files of this project, whatever epic is open' },
+  ],
   mcp: {
     url: '/mcp',
     transport: 'http',
