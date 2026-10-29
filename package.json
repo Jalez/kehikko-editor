@@ -1,6 +1,6 @@
 {
   "name": "kehikko-editor",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "private": true,
   "type": "module",
   "description": "Edit the file the canvas points at: an explicit save, refused when the file changed on disk, atomic, confined to the project and never under .kehikot/. The agent door only reads.",
@@ -30,7 +30,7 @@
     "@radix-ui/react-slot": "^1.3.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "kehikot-module-protocol": "git+ssh://git@github.com/Jalez/kehikko-protocol.git#v2.32.0",
+    "kehikot-module-protocol": "git+ssh://git@github.com/Jalez/kehikko-protocol.git#v2.33.0",
     "lucide-react": "^1.33.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",

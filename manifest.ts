@@ -76,6 +76,9 @@ export const MANIFEST: Manifest = manifestSchema.parse({
   },
   extensions: { emits: [], consumes: [] },
   reacts: ['passage'],
+  /* It opens a file the host points the canvas at (protocol 2.33.0): a host's "Open the file" — a
+     module's settings file, say — comes here instead of a dialog. */
+  opens: ['file'],
   partless:
     'It edits the one file the canvas points at, which is in the person’s hands whatever parts of the epic are picked.',
   declares: {

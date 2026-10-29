@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { MODULE_ID, manifestSchema, moduleFolder } from 'kehikot-module-protocol'
+import { MODULE_ID, canOpen, manifestSchema, moduleFolder } from 'kehikot-module-protocol'
 
 import { ID, MANIFEST, PREFERRED_PORT } from '../manifest.ts'
 
@@ -16,6 +16,11 @@ describe('the manifest', () => {
 
   test('declares storage, because this module takes writes on its own origin', () => {
     expect(MANIFEST.declares.storage).toBe(true)
+  })
+
+  test('says it opens a file the host points the canvas at, so a host names no module for "Open the file"', () => {
+    expect(MANIFEST.opens).toEqual(['file'])
+    expect(canOpen(MANIFEST, 'file')).toBe(true)
   })
 
   test('points at doors this module answers', () => {
