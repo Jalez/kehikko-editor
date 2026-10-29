@@ -3,10 +3,11 @@ import { establishBuild, mintTicket, refuseTicket, type Reply } from 'kehikot-mo
 
 import { configuredRoots, rootOf } from './file/confine.ts'
 import { describe, editingIn, report } from './file/editing.ts'
-import { open, stampOf } from './file/open.ts'
+import { locate, open, stampOf } from './file/open.ts'
 import { save } from './file/save.ts'
 import { MAX_BYTES, MAX_PATH, bytes, str } from './file/shape.ts'
 import { resolveProject, type Resolve } from './host-ask.ts'
+import { makeStream, saved as told } from './live.ts'
 import { ID, MANIFEST, VERSION } from './manifest.ts'
 
 /**
@@ -64,6 +65,20 @@ async function pageRoot(named: string): Promise<{ ok: true; root: string } | { o
   if (!root) return { ok: false, reply: bad(NOT_A_PROJECT_PAGE) }
   return { ok: true, root }
 }
+
+/**
+ * The page's stream: told when the open file changed on disk, so it never asks on a clock
+ * (`live.ts`). The same ticket and the same checks as `/api/stamp` before anything is watched.
+ */
+export const stream = makeStream(
+  (ticket) => ticket === TICKET,
+  async (projectPath, path) => {
+    const project = await pageRoot(str(projectPath, MAX_PATH))
+    if (!project.ok) return null
+    const where = locate(project.root, str(path, MAX_PATH), 'page')
+    return where.ok ? where.real : null
+  },
+)
 
 /* ------------------------------------------------------------------ *
  * The MCP door: read-only
@@ -205,6 +220,9 @@ export async function answer(
     const saved = save(project.root, at, body.text, body.base)
     if (saved.kind === 'refused') return bad(saved.error, 409)
     if (saved.kind === 'conflict') return { status: 409, body: { ok: false, ...saved } }
+    /* A page following this file (another window, or this one) is told at once. */
+    const where = locate(project.root, at, 'page')
+    if (where.ok) told(where.real)
     return ok({ ok: true, ...saved })
   }
 

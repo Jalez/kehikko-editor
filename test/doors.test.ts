@@ -5,7 +5,9 @@ import { join } from 'node:path'
 
 import { DOOR_PROJECT_SAYS, WELL_KNOWN, manifestSchema } from 'kehikot-module-protocol'
 
-import { MANIFEST, READ_ONLY_DOOR, TICKET, answer, setHostResolve } from '../doors.ts'
+import { MANIFEST, READ_ONLY_DOOR, TICKET, answer, setHostResolve, stream } from '../doors.ts'
+import { EVENTS_PATH, NEWS, stopWatching, topicOf, watchedCount } from '../live.ts'
+import { watching } from 'kehikot-module-protocol/serve'
 import { forgetKnown } from '../file/confine.ts'
 import { forgetEditing } from '../file/editing.ts'
 import { ID } from '../manifest.ts'
@@ -161,5 +163,67 @@ describe('the folder layout', () => {
     mkdirSync(join(project, 'sub'), { recursive: true })
     await openA()
     expect(() => readFileSync(join(project, '.kehikot', 'editor'))).toThrow()
+  })
+})
+
+describe('the page\'s stream: told when the open file changed on disk', () => {
+  const settle = (ms = 200) => new Promise((resolve) => setTimeout(resolve, ms))
+  type Closable = { close: () => void }
+  const follow = (fields: Record<string, string>, ticket: string | null = null) => {
+    const heard: unknown[] = []
+    const live = stream('GET', EVENTS_PATH, q(fields), (event) => heard.push(event), ticket) as Closable | { reply: unknown } | null
+    return { heard, live }
+  }
+
+  test('opens with the news once and watches the file; the Editor\'s save and another program\'s write are news', async () => {
+    writeFileSync(join(project, 'b.txt'), 'one\n')
+    const { heard, live } = follow({ projectPath: project, path: 'b.txt', ticket: TICKET })
+    expect(live && 'close' in live).toBe(true)
+    expect(heard).toEqual([NEWS])
+    expect(watching(topicOf(project, 'b.txt'))).toBe(1)
+    await settle(50)
+    expect(watchedCount()).toBe(1)
+
+    /* The Editor's own save. */
+    const opened = (await answer('GET', '/api/open', q({ projectPath: project, path: 'b.txt' }), null, TICKET))?.body as { version: string }
+    const saved = await answer('POST', '/api/save', none, { projectPath: project, path: 'b.txt', text: 'two\n', base: opened.version }, TICKET)
+    expect(saved?.status).toBe(200)
+    await settle()
+    expect(heard.length).toBe(2)
+
+    /* Another program writing the file. */
+    writeFileSync(join(project, 'b.txt'), 'three\n')
+    await settle()
+    expect(heard.length).toBe(3)
+
+    /* A different file in the same folder is not this file's news. */
+    writeFileSync(join(project, 'c.txt'), 'other\n')
+    await settle()
+    expect(heard.length).toBe(3)
+
+    ;(live as Closable).close()
+    expect(watching(topicOf(project, 'b.txt'))).toBe(0)
+    stopWatching()
+  })
+
+  test('the ticket travels in the query; without it the stream is not opened, and /api refuses it', async () => {
+    expect(follow({ projectPath: project, path: 'a.txt' }).live).toBeNull()
+    expect(follow({ projectPath: project, path: 'a.txt', ticket: 'wrong' }).live).toBeNull()
+    const refused = await answer('GET', EVENTS_PATH, q({ projectPath: project, path: 'a.txt' }), null, null)
+    expect(refused?.status).toBe(403)
+    /* The header works too, as for every other /api route. */
+    const { live } = follow({ projectPath: project, path: 'a.txt' }, TICKET)
+    expect(live && 'close' in live).toBe(true)
+    ;(live as Closable).close()
+    stopWatching()
+  })
+
+  test('a file the page may not look at is never watched', async () => {
+    for (const fields of [{ projectPath: '/somewhere/else', path: 'a.txt' }, { projectPath: project, path: '../../etc/hosts' }]) {
+      const { live } = follow({ ...fields, ticket: TICKET })
+      await settle(50)
+      expect(watchedCount()).toBe(0)
+      if (live && 'close' in live) live.close()
+    }
   })
 })

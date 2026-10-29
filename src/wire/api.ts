@@ -1,4 +1,4 @@
-import { ask, type Asked } from 'kehikot-module-protocol/client'
+import { ask, subscribe, ticket, type Asked } from 'kehikot-module-protocol/client'
 
 import type { OpenedFile } from '@/edit/state'
 
@@ -21,6 +21,13 @@ export interface Api {
   stamp(projectPath: string, path: string): Promise<{ version: string | null; gone?: string } | null>
   save(projectPath: string, path: string, text: string, base: string): Promise<SaveAnswer>
   editing(projectPath: string, report: Record<string, unknown>): Promise<void>
+  /**
+   * Hear when the open file may have changed on disk: once as the stream opens (and again each time
+   * it reopens, after a drop or when the page is shown again), then whenever the server sees the
+   * file written. Never on a clock, and nothing while the page is hidden. Returns the function that
+   * stops it. The ticket rides in the query: an `EventSource` sends no headers.
+   */
+  changes(projectPath: string, path: string, onChange: () => void): () => void
 }
 
 export const api: Api = {
@@ -40,6 +47,9 @@ export const api: Api = {
       return { kind: 'conflict', version: body.version, text: typeof body.text === 'string' ? body.text : null, said: body.error ?? asked.error }
     }
     return { kind: 'refused', said: asked.error }
+  },
+  changes(projectPath, path, onChange) {
+    return subscribe('./api/stamp/events', () => onChange(), { query: { projectPath, path, ticket: ticket() }, probe: true })
   },
   async editing(projectPath, report) {
     await ask('./api/editing', { body: { projectPath, ...report } })
