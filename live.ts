@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { existsSync, watch, type FSWatcher } from 'node:fs'
+import { existsSync, readFileSync, watch, type FSWatcher } from 'node:fs'
 import { basename, dirname } from 'node:path'
 
 import { events, publish, watching } from 'kehikot-module-protocol/serve'
@@ -29,9 +29,23 @@ export const NEWS = { changed: true } as const
 export const topicOf = (projectPath: string, path: string): string =>
   `stamp:${createHash('sha256').update(`${projectPath}\0${path}`).digest('hex')}`
 
-/* A save writes, renames and may chmod: one piece of news. */
-const SETTLE_MS = 50
+/* A save writes, renames and may chmod, and a platform may report each: settled, then checked. */
+const SETTLE_MS = 100
 const settling = new Map<string, ReturnType<typeof setTimeout>>()
+
+/**
+ * What the file holds, as one string: a hash of its bytes, or `gone`. News is published only when
+ * this differs from what was last published (or seen as the watch began) for the topic, so one
+ * write is one piece of news however many events the platform fires for it, and whether the
+ * Editor's own save or the watcher saw it first.
+ */
+function contentOf(real: string): string {
+  try {
+    return createHash('sha256').update(readFileSync(real)).digest('hex')
+  } catch {
+    return 'gone'
+  }
+}
 
 function changed(topic: string): void {
   if (settling.has(topic) || watching(topic) === 0) return
@@ -39,6 +53,12 @@ function changed(topic: string): void {
     topic,
     setTimeout(() => {
       settling.delete(topic)
+      const one = watched.get(topic)
+      if (one) {
+        const now = contentOf(one.real)
+        if (now === one.last) return
+        one.last = now
+      }
       publish(topic, NEWS)
     }, SETTLE_MS),
   )
@@ -48,6 +68,8 @@ interface Watched {
   watcher: FSWatcher
   /** The real path of the file, once it passed the fence. */
   real: string
+  /** What it held when news was last published, or when the watch began (`contentOf`). */
+  last: string
 }
 
 const watched = new Map<string, Watched>()
@@ -77,7 +99,7 @@ function watchFile(topic: string, real: string): void {
       watcher.close()
       watched.delete(topic)
     })
-    watched.set(topic, { watcher, real })
+    watched.set(topic, { watcher, real, last: contentOf(real) })
   } catch {
     /* A folder that cannot be watched: the Editor's own saves still publish, and the page asks on focus. */
   }

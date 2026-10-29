@@ -184,21 +184,22 @@ describe('the page\'s stream: told when the open file changed on disk', () => {
     await settle(50)
     expect(watchedCount()).toBe(1)
 
-    /* The Editor's own save. */
+    /* The Editor's own save: exactly one piece of news, however many events the platform fires for the rename. */
     const opened = (await answer('GET', '/api/open', q({ projectPath: project, path: 'b.txt' }), null, TICKET))?.body as { version: string }
     const saved = await answer('POST', '/api/save', none, { projectPath: project, path: 'b.txt', text: 'two\n', base: opened.version }, TICKET)
     expect(saved?.status).toBe(200)
-    await settle()
+    await settle(400)
     expect(heard.length).toBe(2)
 
-    /* Another program writing the file. */
+    /* Another program writing the file: one more. */
     writeFileSync(join(project, 'b.txt'), 'three\n')
-    await settle()
+    await settle(400)
     expect(heard.length).toBe(3)
 
-    /* A different file in the same folder is not this file's news. */
+    /* The same bytes written again, a different file in the same folder: no news. */
+    writeFileSync(join(project, 'b.txt'), 'three\n')
     writeFileSync(join(project, 'c.txt'), 'other\n')
-    await settle()
+    await settle(400)
     expect(heard.length).toBe(3)
 
     ;(live as Closable).close()
