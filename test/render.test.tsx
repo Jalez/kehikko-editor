@@ -51,7 +51,16 @@ function Plain({ text, generation, readOnly, onChange, onSave }: CodeEditorProps
 
 function fakeApi(files: Record<string, Partial<Opened>>, onSave: (path: string, text: string, base: string) => SaveAnswer = () => ({ kind: 'saved', version: 'v2', unchanged: false })) {
   const saves: { path: string; text: string; base: string }[] = []
+  /* As the stream does: once as it opens, then at each change the test sends. */
+  const streams: { path: string; onChange: () => void }[] = []
+  const stamps = { count: 0, version: null as string | null }
   const api: Api = {
+    changes(_projectPath, path, onChange) {
+      const one = { path, onChange }
+      streams.push(one)
+      onChange()
+      return () => void streams.splice(streams.indexOf(one), 1)
+    },
     async open(_projectPath, path) {
       const file = files[path]
       if (!file) return { ok: false, kind: 'refused', status: 404, error: 'That file is not somewhere this app can look.', body: null }
@@ -62,7 +71,8 @@ function fakeApi(files: Record<string, Partial<Opened>>, onSave: (path: string, 
       }
     },
     async stamp() {
-      return null
+      stamps.count += 1
+      return stamps.version === null ? null : { version: stamps.version }
     },
     async save(_projectPath, path, text, base) {
       saves.push({ path, text, base })
@@ -70,7 +80,7 @@ function fakeApi(files: Record<string, Partial<Opened>>, onSave: (path: string, 
     },
     async editing() {},
   }
-  return { api, saves }
+  return { api, saves, streams, stamps }
 }
 
 describe('the editor page', () => {
@@ -168,6 +178,42 @@ describe('the editor page', () => {
       const { container } = render(<Screen host={host({ ...none, where })} api={fakeApi({}).api} Code={Plain} />)
       expect(container.querySelector('[data-cover]')?.getAttribute('data-cover')).toBe(state)
       cleanup()
+    }
+  })
+})
+
+describe('the open file is told when it changed on disk, never asked on a clock', () => {
+  test('one stamp as the stream opens, no interval, and another only when the server says so', async () => {
+    const realInterval = globalThis.setInterval
+    let intervals = 0
+    globalThis.setInterval = ((...args: Parameters<typeof setInterval>) => (intervals++, realInterval(...args))) as typeof setInterval
+    try {
+      const fake = fakeApi({ '/work/thesis/a.ts': { text: 'const a = 1\n' } })
+      let opens = 0
+      const open = fake.api.open
+      fake.api.open = (...args) => (opens++, open(...args))
+      render(<Screen host={host()} api={fake.api} Code={Plain} />)
+      await act(async () => void (await new Promise((resolve) => setTimeout(resolve, 50))))
+      /* Counted before `waitFor`, which keeps an interval of its own. */
+      expect(intervals).toBe(0)
+      await waitFor(() => expect(screen.getByTestId('name').textContent).toBe('a.ts'))
+      expect(fake.streams.map((one) => one.path)).toEqual(['/work/thesis/a.ts'])
+      expect(fake.stamps.count).toBe(1)
+      expect(opens).toBe(1)
+
+      /* A while later, with no news, nothing more was asked. */
+      await act(async () => void (await new Promise((resolve) => setTimeout(resolve, 300))))
+      expect(fake.stamps.count).toBe(1)
+
+      /* Another program wrote the file: the server says so, the page asks the stamp, sees a new version and reloads. */
+      fake.stamps.version = 'v9'
+      await act(async () => fake.streams.forEach((one) => one.onChange()))
+      expect(fake.stamps.count).toBe(2)
+      await waitFor(() => expect(opens).toBe(2))
+      cleanup()
+      expect(fake.streams).toHaveLength(0)
+    } finally {
+      globalThis.setInterval = realInterval
     }
   })
 })

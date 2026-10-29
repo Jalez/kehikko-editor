@@ -22,9 +22,6 @@ type GotoHandler = NonNullable<HostEvents['onGoto']>
 /** What the screen needs from the host. A plain object, so a test can draw the screen without one. */
 export type Host = Pick<ProtocolHost, 'where' | 'project' | 'projectPath' | 'projectId' | 'passage' | 'header'>
 
-/** How often the open file is looked at on disk, in ms. A `stat` when nothing changed. */
-export const WATCH_MS = 2000
-
 /**
  * The page.
  *
@@ -142,7 +139,11 @@ export function Screen({
     return () => clearTimeout(timer)
   }, [key, relative, state.text, state.base])
 
-  /* The watch: the file's version on disk, every couple of seconds and when the page is looked at again. */
+  /*
+   * The watch: the file's version on disk, asked when the server says the file was written (its own
+   * stream, `api.changes`, whose first event is also the first ask), and when the window is focused
+   * again. Nothing asks on a clock, and the stream is closed while the page is hidden.
+   */
   const filePath = state.file?.path ?? null
   useEffect(() => {
     if (!projectPath || !filePath) return
@@ -153,12 +154,12 @@ export function Screen({
       if (!live || !stamp || now.current.file?.path !== filePath) return
       dispatch(stamp.version === null ? { type: 'stamp', version: null, gone: stamp.gone ?? 'The file is no longer there.' } : { type: 'stamp', version: stamp.version })
     }
-    const timer = setInterval(() => void look(), WATCH_MS)
+    const stop = api.changes(projectPath, filePath, () => void look())
     const onFocus = () => void look()
     window.addEventListener('focus', onFocus)
     return () => {
       live = false
-      clearInterval(timer)
+      stop()
       window.removeEventListener('focus', onFocus)
     }
   }, [api, projectPath, filePath])
