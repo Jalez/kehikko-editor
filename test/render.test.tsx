@@ -192,6 +192,45 @@ describe('the editor page', () => {
     expect(declared.at(-1)?.every((item) => !item.agents)).toBe(true)
   })
 
+  test('Wrap lines is read from what the host kept for this container, and a press keeps it', async () => {
+    let kept: unknown = { wrap: true, other: 'x' }
+    const wrote: [unknown, number | undefined][] = []
+    const declared: { id: string; checked?: boolean }[][] = []
+    const press = { current: (_press: { item: string; value?: unknown }): unknown => undefined }
+    const { api } = fakeApi({ '/work/thesis/a.ts': { text: 'one\n' } })
+    const keeping = {
+      read: (() => ({ kept })) as NonNullable<Host['read']>,
+      remember: ((next: unknown, after?: number) => {
+        kept = next
+        wrote.push([next, after])
+      }) as NonNullable<Host['remember']>,
+    }
+    const draw = () => (
+      <Screen
+        host={host({ kept, ...keeping, header: (items) => void declared.push(items as { id: string; checked?: boolean }[]) })}
+        api={api}
+        Code={Plain}
+        press={press as never}
+      />
+    )
+    const view = render(draw())
+    await waitFor(() => expect(declared.at(-1)?.find((item) => item.id === 'wrap')?.checked).toBe(true))
+    act(() => void press.current({ item: 'wrap', value: false }))
+    expect(wrote).toEqual([[{ wrap: false, other: 'x' }, 300]])
+    view.rerender(draw())
+    await waitFor(() => expect(declared.at(-1)?.find((item) => item.id === 'wrap')?.checked).toBe(false))
+  })
+
+  test('without a kept value lines do not wrap, and a press still turns it on', async () => {
+    const declared: { id: string; checked?: boolean }[][] = []
+    const press = { current: (_press: { item: string; value?: unknown }): unknown => undefined }
+    const { api } = fakeApi({ '/work/thesis/a.ts': { text: 'one\n' } })
+    render(<Screen host={host({ header: (items) => void declared.push(items as { id: string; checked?: boolean }[]) })} api={api} Code={Plain} press={press as never} />)
+    await waitFor(() => expect(declared.at(-1)?.find((item) => item.id === 'wrap')?.checked).toBe(false))
+    act(() => void press.current({ item: 'wrap', value: true }))
+    await waitFor(() => expect(declared.at(-1)?.find((item) => item.id === 'wrap')?.checked).toBe(true))
+  })
+
   test('each not-ready state is the shared cover', () => {
     const none = { projectPath: null, project: null, passage: null }
     for (const [where, state] of [['listening', 'waiting'], ['unhosted', 'unhosted'], ['hosted', 'no-project']] as const) {

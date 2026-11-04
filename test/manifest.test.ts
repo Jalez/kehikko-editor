@@ -23,6 +23,10 @@ describe('the manifest', () => {
     expect(canOpen(MANIFEST, 'file')).toBe(true)
   })
 
+  test('asks the host for nothing but keeping its view', () => {
+    expect(MANIFEST.declares.uses).toEqual(['state:keep'])
+  })
+
   test('points at doors this module answers', () => {
     expect(MANIFEST.entry).toBe('/app')
     expect(MANIFEST.health).toBe('/healthz')

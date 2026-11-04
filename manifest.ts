@@ -39,6 +39,12 @@ export const PREFERRED_PORT = 8030
  * from its Go menu — which is in their hands whatever parts of the epic are
  * picked. There is nothing here to narrow.
  *
+ * ## `state:keep`
+ *
+ * Whether lines wrap is kept for the container (2.51.0): the host holds it per container and hands
+ * it back in the greeting, so it is as it was left after a restart. The recent files and the
+ * unsaved drafts are not view state of a container and stay where they were.
+ *
  * ## `storage: true`
  *
  * For the same reason as Source: the page's `/api` calls must be same-origin, so
@@ -83,7 +89,7 @@ export const MANIFEST: Manifest = manifestSchema.parse({
     'It edits the one file the canvas points at, which is in the person’s hands whatever parts of the epic are picked.',
   declares: {
     protocol: `>=${PROTOCOL} <${PROTOCOL + 1}`,
-    uses: [],
+    uses: ['state:keep'],
     storage: true,
     prompt: false,
   },

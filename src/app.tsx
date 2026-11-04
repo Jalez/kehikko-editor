@@ -1,6 +1,6 @@
 import type { HeaderItem, PressValue } from 'kehikot-module-protocol'
 import type { HostEvents } from 'kehikot-module-protocol/client'
-import { Cover, coverFor, useHost, useServerStanding, type Host as ProtocolHost } from 'kehikot-module-protocol/client/react'
+import { Cover, coverFor, useHost, useKept, useServerStanding, type Host as ProtocolHost } from 'kehikot-module-protocol/client/react'
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type ComponentType } from 'react'
 
 import { ID } from '../manifest.ts'
@@ -15,6 +15,7 @@ import { keepDraft, keyOf, noteRecent, readDraftFor, readRecent } from '@/edit/k
 import { EMPTY, dirty, reduce, saveRefusal, type EditorState } from '@/edit/state'
 import { CodeEditor, type CodeEditorProps } from '@/view/code-editor'
 import { api as realApi, type Api } from '@/wire/api'
+import { useKeeps } from '@/wire/keeps'
 
 type Press = { item: string; value?: PressValue }
 type PressAnswer = string | true | void
@@ -22,7 +23,7 @@ type GotoHandler = NonNullable<HostEvents['onGoto']>
 
 /** What the screen needs from the host. A plain object, so a test can draw the screen without one. */
 export type Host = Pick<ProtocolHost, 'where' | 'project' | 'projectPath' | 'projectId' | 'passage' | 'header'> &
-  Partial<Pick<ProtocolHost, 'footer' | 'drawsFooter'>>
+  Partial<Pick<ProtocolHost, 'footer' | 'drawsFooter' | 'kept' | 'read' | 'remember'>>
 
 /**
  * The page.
@@ -62,7 +63,9 @@ export function Screen({
   now.current = state
   const [generation, setGeneration] = useState(0)
   const [recent, setRecent] = useState<string[]>(() => readRecent(key))
-  const [wrap, setWrap] = useState(false)
+  /* Wrap lines is a way of looking, kept by the host for this container (this module on this
+     kehikko) and back after a restart (2.51.0). Never browser storage. */
+  const [wrap, setWrap] = useKept(useKeeps(host), 'wrap', false)
   /** The file the canvas points at, held back because there are unsaved changes here. */
   const [pending, setPending] = useState<string | null>(null)
   const [comparing, setComparing] = useState(false)
