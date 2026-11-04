@@ -125,6 +125,26 @@ describe('the editor page', () => {
     expect(screen.getByTestId('reload')).toBeDefined()
   })
 
+  test('a host that draws the footer is told the file and whether it is saved; the page draws no bar of its own', async () => {
+    const footers: { id: string; text?: string; level?: string }[][] = []
+    const { api } = fakeApi({ '/work/thesis/a.ts': { text: 'one\n', language: 'TypeScript' } })
+    render(<Screen host={host({ drawsFooter: true, footer: (items) => void footers.push(items as never) })} api={api} Code={Plain} />)
+    await waitFor(() => expect(footers.at(-1)?.find((i) => i.id === 'file')?.text).toBe('a.ts'))
+    expect(footers.at(-1)?.find((i) => i.id === 'status')).toMatchObject({ text: 'Saved' })
+    expect(footers.at(-1)?.find((i) => i.id === 'language')).toMatchObject({ text: 'TypeScript' })
+    expect(screen.queryByTestId('name')).toBeNull()
+    fireEvent.change(screen.getByLabelText('code'), { target: { value: 'two\n' } })
+    await waitFor(() => expect(footers.at(-1)?.find((i) => i.id === 'status')).toMatchObject({ text: 'Unsaved', level: 'warn' }))
+  })
+
+  test('a host that does not draw the footer is sent none, and the page keeps its bar', async () => {
+    const footers: unknown[] = []
+    const { api } = fakeApi({ '/work/thesis/a.ts': { text: 'one\n' } })
+    render(<Screen host={host({ drawsFooter: false, footer: (items) => void footers.push(items) })} api={api} Code={Plain} />)
+    await waitFor(() => expect(screen.getByTestId('name').textContent).toBe('a.ts'))
+    expect(footers).toHaveLength(0)
+  })
+
   test('a read-only file says whose it is and offers no Save', async () => {
     const owned = 'This is Paper’s LaTeX source. Paper edits it through its proposals.'
     const { api } = fakeApi({ '/work/thesis/.kehikot/paper/t/main.tex': { text: 'x', readOnly: owned } })
