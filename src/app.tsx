@@ -9,6 +9,7 @@ import { HeaderMenus } from '@/components/header-menus'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { compare, hunks } from '@/edit/diff'
+import { footerItems } from '@/edit/footer'
 import { headerItems, recentPressed } from '@/edit/header'
 import { keepDraft, keyOf, noteRecent, readDraftFor, readRecent } from '@/edit/kept'
 import { EMPTY, dirty, reduce, saveRefusal, type EditorState } from '@/edit/state'
@@ -20,7 +21,8 @@ type PressAnswer = string | true | void
 type GotoHandler = NonNullable<HostEvents['onGoto']>
 
 /** What the screen needs from the host. A plain object, so a test can draw the screen without one. */
-export type Host = Pick<ProtocolHost, 'where' | 'project' | 'projectPath' | 'projectId' | 'passage' | 'header'>
+export type Host = Pick<ProtocolHost, 'where' | 'project' | 'projectPath' | 'projectId' | 'passage' | 'header'> &
+  Partial<Pick<ProtocolHost, 'footer' | 'drawsFooter'>>
 
 /**
  * The page.
@@ -295,6 +297,15 @@ export function Screen({
   const { header } = host
   useEffect(() => header(items), [header, items])
 
+  /* ---- The footer: the file and how it stands, when the host draws one (2.38.0) ---- */
+
+  const footed = where === 'hosted' && host.drawsFooter === true
+  const footerSaid = footed ? JSON.stringify(footerItems(state)) : null
+  const { footer } = host
+  useEffect(() => {
+    if (footerSaid) footer?.(JSON.parse(footerSaid))
+  }, [footer, footerSaid])
+
   /* ---- Drawing ---------------------------------------------------- */
 
   const cover = server === 'stale' ? 'stale' : (coverFor(host, { project: true }) ?? (server === 'down' && !state.file ? 'down' : null))
@@ -302,9 +313,10 @@ export function Screen({
 
   return (
     <div className="flex h-full min-w-0 flex-col text-sm">
-      <Bar state={state} items={items} where={where} onPress={onPress} onSave={() => void save()} />
+      {footed ? null : <Bar state={state} items={items} where={where} onPress={onPress} onSave={() => void save()} />}
       <Notices
         state={state}
+        footed={footed}
         pending={pending}
         comparing={comparing}
         onOpenPending={() => pending && void openFile(pending)}
@@ -395,6 +407,7 @@ function Bar({
 
 function Notices({
   state,
+  footed = false,
   pending,
   comparing,
   onOpenPending,
@@ -402,6 +415,8 @@ function Notices({
   onCompare,
 }: {
   state: EditorState
+  /** The footer says why it is read-only, what went wrong and what just happened: those lines are not drawn here too. */
+  footed?: boolean
   pending: string | null
   comparing: boolean
   onOpenPending(): void
@@ -440,13 +455,13 @@ function Notices({
           </Button>
         </div>
       ) : null}
-      {state.file?.readOnly ? <p className={`${line} text-muted-foreground`} data-testid="why-read-only">{state.file.readOnly}</p> : null}
-      {state.trouble && !(state.disk.state === 'changed' && unsaved) ? (
+      {state.file?.readOnly && !footed ? <p className={`${line} text-muted-foreground`} data-testid="why-read-only">{state.file.readOnly}</p> : null}
+      {state.trouble && !footed && !(state.disk.state === 'changed' && unsaved) ? (
         <p role="alert" className={`${line} text-destructive`} data-testid="trouble">
           {state.trouble}
         </p>
       ) : null}
-      {state.said ? (
+      {state.said && !footed ? (
         <p className={`${line} text-muted-foreground`} data-testid="said">
           {state.said}
         </p>
