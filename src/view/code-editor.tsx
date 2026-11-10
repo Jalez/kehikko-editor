@@ -136,6 +136,8 @@ export function CodeEditor({ text, generation, eol, language, readOnly, wrap, on
       parent,
       state: EditorState.create({ doc: text, extensions, selection: EditorSelection.cursor(0) }),
     })
+    /* The scroller the host's kept view reads and restores (protocol 2.70.0). */
+    created.scrollDOM.setAttribute('data-kehikot-scroll', '')
     view.current = created
     return () => {
       created.destroy()

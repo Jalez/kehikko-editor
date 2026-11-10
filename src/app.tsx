@@ -23,7 +23,7 @@ type GotoHandler = NonNullable<HostEvents['onGoto']>
 
 /** What the screen needs from the host. A plain object, so a test can draw the screen without one. */
 export type Host = Pick<ProtocolHost, 'where' | 'project' | 'projectPath' | 'projectId' | 'passage' | 'header'> &
-  Partial<Pick<ProtocolHost, 'footer' | 'drawsFooter' | 'kept' | 'read' | 'remember'>>
+  Partial<Pick<ProtocolHost, 'footer' | 'drawsFooter' | 'kept' | 'read' | 'remember' | 'ready'>>
 
 /**
  * The page.
@@ -312,6 +312,13 @@ export function Screen({
   /* ---- Drawing ---------------------------------------------------- */
 
   const cover = server === 'stale' ? 'stale' : (coverFor(host, { project: true }) ?? (server === 'down' && !state.file ? 'down' : null))
+  /* The host's cover is held until the page is drawn (protocol 2.70.0): once a file is open, or none is asked
+     for, or a cover says why there is nothing to draw. */
+  const drawn = cover !== null ? cover !== 'waiting' : state.file !== null || !wanted
+  const { ready } = host
+  useEffect(() => {
+    if (drawn) ready?.()
+  }, [drawn, ready])
   if (cover) return <Cover state={cover} name="Editor" onRetry={() => wanted && void openFile(wanted)} />
 
   return (
