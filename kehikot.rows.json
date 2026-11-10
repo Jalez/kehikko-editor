@@ -1,0 +1,185 @@
+[
+  {
+    "name": "a file open",
+    "header": [
+      {
+        "kind": "run",
+        "id": "save",
+        "label": "Save",
+        "icon": "check",
+        "shortcut": "⌘S",
+        "agents": false,
+        "state": "idle",
+        "result": null,
+        "disabled": "Nothing to save: there are no unsaved changes.",
+        "confirm": false,
+        "pinned": true
+      },
+      {
+        "kind": "run",
+        "id": "reload",
+        "label": "Reload from disk",
+        "icon": "refresh",
+        "agents": false,
+        "state": "idle",
+        "result": null,
+        "disabled": null,
+        "confirm": false
+      },
+      {
+        "kind": "run",
+        "id": "revert",
+        "label": "Revert unsaved changes",
+        "icon": "undo",
+        "agents": false,
+        "state": "idle",
+        "result": null,
+        "disabled": "There are no unsaved changes to revert.",
+        "confirm": true
+      },
+      {
+        "kind": "toggle",
+        "id": "wrap",
+        "label": "Wrap lines",
+        "agents": false,
+        "checked": true
+      },
+      {
+        "kind": "go",
+        "id": "recent",
+        "label": "Recent files",
+        "agents": false,
+        "options": [
+          {
+            "id": "r0",
+            "label": "a.ts"
+          },
+          {
+            "id": "r1",
+            "label": "b.ts"
+          }
+        ]
+      }
+    ],
+    "footer": [
+      {
+        "kind": "text",
+        "id": "file",
+        "text": "a.ts",
+        "level": "normal",
+        "align": "start",
+        "optional": false,
+        "tooltip": "/p/a.ts"
+      },
+      {
+        "kind": "text",
+        "id": "status",
+        "text": "Saved",
+        "level": "normal",
+        "align": "start",
+        "optional": false
+      },
+      {
+        "kind": "text",
+        "id": "language",
+        "text": "typescript",
+        "level": "normal",
+        "align": "end",
+        "optional": true
+      }
+    ],
+    "state": true
+  },
+  {
+    "name": "unsaved edits",
+    "header": [
+      {
+        "kind": "run",
+        "id": "save",
+        "label": "Save",
+        "icon": "check",
+        "shortcut": "⌘S",
+        "agents": false,
+        "state": "idle",
+        "result": null,
+        "disabled": null,
+        "confirm": false,
+        "pinned": true
+      },
+      {
+        "kind": "run",
+        "id": "reload",
+        "label": "Reload from disk (discard changes)",
+        "icon": "refresh",
+        "agents": false,
+        "state": "idle",
+        "result": null,
+        "disabled": null,
+        "confirm": true
+      },
+      {
+        "kind": "run",
+        "id": "revert",
+        "label": "Revert unsaved changes",
+        "icon": "undo",
+        "agents": false,
+        "state": "idle",
+        "result": null,
+        "disabled": null,
+        "confirm": true
+      },
+      {
+        "kind": "toggle",
+        "id": "wrap",
+        "label": "Wrap lines",
+        "agents": false,
+        "checked": true
+      },
+      {
+        "kind": "go",
+        "id": "recent",
+        "label": "Recent files",
+        "agents": false,
+        "options": [
+          {
+            "id": "r0",
+            "label": "a.ts"
+          },
+          {
+            "id": "r1",
+            "label": "b.ts"
+          }
+        ]
+      }
+    ],
+    "footer": [
+      {
+        "kind": "text",
+        "id": "file",
+        "text": "a.ts",
+        "level": "normal",
+        "align": "start",
+        "optional": false,
+        "tooltip": "/p/a.ts"
+      },
+      {
+        "kind": "text",
+        "id": "status",
+        "text": "Unsaved",
+        "level": "warn",
+        "align": "start",
+        "optional": false,
+        "tooltip": "This file has changes that are not saved."
+      },
+      {
+        "kind": "text",
+        "id": "language",
+        "text": "typescript",
+        "level": "normal",
+        "align": "end",
+        "optional": true
+      }
+    ],
+    "state": true
+  }
+]
