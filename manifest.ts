@@ -30,7 +30,7 @@ export const PREFERRED_PORT = 8030
  *   header's Save.
  * - Overwrite a file that changed on disk since the edit began.
  * - Write anything under `.kehikot/`: each module there is the only writer of its
- *   folder (Paper's LaTeX, Notes' notes, the host's own records).
+ *   folder (a document that takes edits as proposals, notes, the host's own records).
  * - Write for an agent: its MCP door only reads.
  *
  * ## `partless`
@@ -44,6 +44,12 @@ export const PREFERRED_PORT = 8030
  * Whether lines wrap is kept for the container (2.51.0): the host holds it per container and hands
  * it back in the greeting, so it is as it was left after a restart. The recent files and the
  * unsaved drafts are not view state of a container and stay where they were.
+ *
+ * ## `services:read`
+ *
+ * Which module keeps a document per epic and takes edits only as proposals (`document.proposals`,
+ * 2.83.0), so its files are read-only here in its own name and its folders are followed where they
+ * lead. Asked by the server (`file/document.ts`); with no answer the `.kehikot/` rule still holds.
  *
  * ## `storage: true`
  *
@@ -89,7 +95,7 @@ export const MANIFEST: Manifest = manifestSchema.parse({
     'It edits the one file the canvas points at, which is in the person’s hands whatever parts of the epic are picked.',
   declares: {
     protocol: `>=${PROTOCOL} <${PROTOCOL + 1}`,
-    uses: ['state:keep'],
+    uses: ['state:keep', 'services:read'],
     storage: true,
     prompt: false,
   },

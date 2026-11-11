@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, test } from 'bun:test'
+import { afterAll, afterEach, describe, expect, test } from 'bun:test'
 import {
   chmodSync,
   lstatSync,
@@ -17,7 +17,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import { MIXED_EOL, NOT_TEXT, NOT_UTF8, READ_ONLY_ON_DISK, REFUSED, open } from '../file/open.ts'
-import { ownedSentence } from '../file/owned.ts'
+import { setKnownDocument } from '../file/document.ts'
+import { documentSentence, ownedSentence } from '../file/owned.ts'
 import { CONFLICT, NO_BASE, save } from '../file/save.ts'
 import { MAX_BYTES } from '../file/shape.ts'
 import { WITHHELD_PAGE } from '../file/withheld.ts'
@@ -76,29 +77,42 @@ describe('where a save may write', () => {
 })
 
 describe('files other modules own are read-only, with a sentence naming the owner', () => {
-  mkdirSync(join(root, '.kehikot', 'paper', 'thesis'), { recursive: true })
+  /* The document provider as the host would answer it: any name, any folder, never spelled in the code. */
+  const MANUSCRIPT = { name: 'Manuscript', folder: '.kehikot/manuscript', main: 'main.tex' }
+  afterEach(() => setKnownDocument(null, Number.POSITIVE_INFINITY))
+  mkdirSync(join(root, '.kehikot', 'manuscript', 'thesis'), { recursive: true })
   mkdirSync(join(root, '.kehikot', 'notes'), { recursive: true })
   mkdirSync(join(root, 'elsewhere'), { recursive: true })
-  writeFileSync(join(root, '.kehikot', 'paper', 'thesis', 'main.tex'), '\\section{Intro}\n')
+  writeFileSync(join(root, '.kehikot', 'manuscript', 'thesis', 'main.tex'), '\\section{Intro}\n')
   writeFileSync(join(root, '.kehikot', 'notes', 'notes.json'), '{}\n')
   writeFileSync(join(root, '.kehikot', 'project.json'), '{"id":"x"}\n')
   writeFileSync(join(root, 'elsewhere', 'main.tex'), '\\section{Linked}\n')
   writeFileSync(join(root, 'elsewhere', 'chapter.tex'), 'chapter\n')
-  symlinkSync(join(root, 'elsewhere'), join(root, '.kehikot', 'paper', 'linked'))
+  symlinkSync(join(root, 'elsewhere'), join(root, '.kehikot', 'manuscript', 'linked'))
   symlinkSync(join(root, '.kehikot', 'notes', 'notes.json'), join(root, 'plain-notes.json'))
 
-  test('Paper’s LaTeX source', () => {
-    const seen = opened('.kehikot/paper/thesis/main.tex')
-    expect(seen.readOnly).toBe(ownedSentence('paper'))
-    expect(seen.readOnly).toContain('Paper')
-    expect(save(root, '.kehikot/paper/thesis/main.tex', 'changed', seen.version)).toEqual({ kind: 'refused', error: ownedSentence('paper') })
-    expect(readFileSync(join(root, '.kehikot', 'paper', 'thesis', 'main.tex'), 'utf8')).toBe('\\section{Intro}\n')
+  test('the document provider’s source, in its own name', () => {
+    setKnownDocument(MANUSCRIPT)
+    const seen = opened('.kehikot/manuscript/thesis/main.tex')
+    expect(seen.readOnly).toBe(documentSentence('Manuscript'))
+    expect(seen.readOnly).toContain('Manuscript keeps this file')
+    expect(save(root, '.kehikot/manuscript/thesis/main.tex', 'changed', seen.version)).toEqual({ kind: 'refused', error: documentSentence('Manuscript') })
+    expect(readFileSync(join(root, '.kehikot', 'manuscript', 'thesis', 'main.tex'), 'utf8')).toBe('\\section{Intro}\n')
   })
 
-  test('a paper folder that is a link elsewhere in the project makes those files Paper’s too', () => {
+  test('a document folder that is a link elsewhere in the project makes those files the provider’s too', () => {
+    setKnownDocument(MANUSCRIPT)
     const seen = opened('elsewhere/chapter.tex')
-    expect(seen.readOnly).toBe(ownedSentence('paper'))
+    expect(seen.readOnly).toBe(documentSentence('Manuscript'))
     expect(save(root, 'elsewhere/chapter.tex', 'x', seen.version).kind).toBe('refused')
+  })
+
+  test('with no provider, its folder under .kehikot/ is still read-only, in generic words', () => {
+    const seen = opened('.kehikot/manuscript/thesis/main.tex')
+    expect(seen.readOnly).toBe(ownedSentence('manuscript'))
+    expect(save(root, '.kehikot/manuscript/thesis/main.tex', 'changed', seen.version).kind).toBe('refused')
+    /* A link elsewhere is followed only when a provider says which folder is a document. */
+    expect(opened('elsewhere/chapter.tex').readOnly).toBeNull()
   })
 
   test('Notes’ store, also through a link with a plain name', () => {

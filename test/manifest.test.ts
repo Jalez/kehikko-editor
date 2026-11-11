@@ -23,8 +23,8 @@ describe('the manifest', () => {
     expect(canOpen(MANIFEST, 'file')).toBe(true)
   })
 
-  test('asks the host for nothing but keeping its view', () => {
-    expect(MANIFEST.declares.uses).toEqual(['state:keep'])
+  test('asks the host for nothing but keeping its view and who keeps a document', () => {
+    expect(MANIFEST.declares.uses).toEqual(['state:keep', 'services:read'])
   })
 
   test('points at doors this module answers', () => {
