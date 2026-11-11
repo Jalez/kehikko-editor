@@ -5,7 +5,8 @@ import { join, relative } from 'node:path'
 /**
  * Modules never name each other: cooperation goes through protocol services, found through the host.
  * This scans the module's own code (not tests, notes, docs, the build or dependencies) for another
- * module's id, the document provider's name or its data folder, and fails on a hit.
+ * module's id, its name as a name, its tools or its data folder, and fails on a hit. Who owns a folder
+ * under `.kehikot/` is read from `module.folders`, never written here.
  */
 
 const ROOT = join(import.meta.dir, '..')
@@ -16,10 +17,11 @@ const OTHERS = [
   'flows', 'history', 'inbox', 'journeys', 'kanban', 'learning', 'monitor', 'notes', 'opencode', 'orchestrator',
   'paper', 'queue', 'references', 'review', 'screenplay', 'slides', 'source', 'terminal', 'tests', 'vibe',
 ]
+const capital = (one: string) => one.charAt(0).toUpperCase() + one.slice(1)
 const FORBIDDEN: RegExp[] = [
   new RegExp(`\\b(?:kehikot|roadmap)\\.(?:${OTHERS.join('|')})\\b`),
-  /\.kehikot\/paper\b/,
-  /\bPaper\b/,
+  new RegExp(`\\.kehikot\\/(?:${OTHERS.join('|')})\\b`),
+  new RegExp(`\\b(?:${OTHERS.map(capital).join('|')})\\b`),
   /\b(?:list_sections|read_source|propose_edit|list_proposals)\b/,
 ]
 

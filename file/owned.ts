@@ -5,6 +5,7 @@ import { KEHIKOT_DIR } from 'kehikot-module-protocol'
 
 import { contains } from './confine.ts'
 import { knownDocument, type DocumentOwner } from './document.ts'
+import { knownFolders, type FolderOwner } from './folders.ts'
 
 /**
  * Files another program owns, which this app opens read-only and says whose they are.
@@ -17,7 +18,10 @@ import { knownDocument, type DocumentOwner } from './document.ts'
  * epics and `project.json`. A save from here would be a second writer the owner
  * does not know about, racing its own atomic writes and skipping its review. So
  * nothing under `.kehikot/` is saved here, whoever owns it, and the sentence names
- * the owner where it can so the remedy is plain.
+ * the owner where it can so the remedy is plain: the module that declares the
+ * folder (`module.folders`, see `folders.ts`), in its own name, or "the <folder>
+ * module" when nobody in use declares it. The Kehikot app's own folders are the
+ * host's, not a module's.
  *
  * ## The document provider, by where its folders lead
  *
@@ -35,17 +39,8 @@ import { knownDocument, type DocumentOwner } from './document.ts'
  * when it resolves elsewhere.
  */
 
-/** The folder names under `.kehikot/` with an owner worth naming in words. */
-const NAMES: Record<string, string> = {
-  notes: 'Notes',
-  journeys: 'Journeys',
-  slides: 'Slides',
-  checklist: 'Checklist',
-  learning: 'Learning',
-  citations: 'Citations',
-  host: 'the Kehikot app',
-  kehikko: 'the Kehikot app',
-}
+/** The Kehikot app's own folders under `.kehikot/`: the host's, not a module's. */
+const HOST_FOLDERS = new Set(['host', 'kehikko'])
 
 /** The sentence for the document provider's files, in its own name. Never markup. */
 export function documentSentence(name: string): string {
@@ -53,13 +48,18 @@ export function documentSentence(name: string): string {
   return `${owner} keeps this file and takes changes to it as proposals, so it is read-only here; suggest changes there.`
 }
 
-/** The sentence for one owner. Never markup: a folder name goes in as text. */
-export function ownedSentence(folder: string): string {
+/**
+ * The sentence for one owner. Never markup: a folder name, an owner's name and what it says go in
+ * as text. `owners` is who declares which folder, as last found.
+ */
+export function ownedSentence(folder: string, owners: ReadonlyMap<string, FolderOwner> = knownFolders()): string {
   if (folder === '' || folder === 'project.json') {
     return 'This file is the Kehikot app’s own record of the project. It is read-only here.'
   }
-  const owner = NAMES[folder] ?? `the ${folder.slice(0, 64)} module`
-  return `This file belongs to ${owner}, which keeps it in ${KEHIKOT_DIR}/${folder.slice(0, 64)}/ and is its only writer. `
+  const declared = HOST_FOLDERS.has(folder) ? undefined : owners.get(folder)
+  const owner = HOST_FOLDERS.has(folder) ? 'the Kehikot app' : declared ? declared.name.slice(0, 64) : `the ${folder.slice(0, 64)} module`
+  const holds = declared?.says ? ` (${declared.says.slice(0, 160).replace(/\.$/, '')})` : ''
+  return `This file belongs to ${owner}, which keeps it in ${KEHIKOT_DIR}/${folder.slice(0, 64)}/${holds} and is its only writer. `
     + `It is read-only here; change it in ${owner}.`
 }
 

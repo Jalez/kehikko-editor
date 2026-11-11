@@ -6,10 +6,8 @@ import { dirname, isAbsolute, relative, resolve, sep } from 'node:path'
  * The fence, and the only place in this program that decides whether a path may
  * be opened — or written.
  *
- * Copied from kehikko-source's `file/confine.ts`, where it was written and tried,
- * so the Editor and Source refuse exactly the same paths. A change to one belongs
- * in the other. Here the stakes are higher again: Source shows a file's contents,
- * this module REPLACES them, so a hole in this fence is a write anywhere on the
+ * Copied from a read-only file viewer's fence, where it was written and tried. Here
+ * the stakes are higher: a viewer shows a file's contents, this module REPLACES them, so a hole in this fence is a write anywhere on the
  * disk the process can reach. `file/save.ts` runs every path through `inside`
  * and writes only to the real path it answers, never to the path a request named.
  *

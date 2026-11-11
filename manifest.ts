@@ -10,7 +10,7 @@ export const VERSION: string = pkg.version
 /**
  * Where this module would like to answer. Said once, here, and read by
  * `vite.config.ts` and `register.ts`. 8030: the next free place on the ten-apart
- * grid above the official list (Browser holds 8020).
+ * grid above the official list.
  */
 export const PREFERRED_PORT = 8030
 
@@ -19,10 +19,9 @@ export const PREFERRED_PORT = 8030
  *
  * ## An editor beside a viewer
  *
- * Source shows the file the canvas points at and never writes; that is its whole
- * claim, and it stays true. This module is the other half: the same file, the
- * same fence, and an explicit save. It follows the passage the way Source does
- * (`reacts: ['passage']`) and never points the canvas itself.
+ * A viewer may show the file the canvas points at and never write; this module is
+ * the other half: the same file, a fence as strict, and an explicit save. It
+ * follows the passage (`reacts: ['passage']`) and never points the canvas itself.
  *
  * ## What it will not do
  *
@@ -49,11 +48,13 @@ export const PREFERRED_PORT = 8030
  *
  * Which module keeps a document per epic and takes edits only as proposals (`document.proposals`,
  * 2.83.0), so its files are read-only here in its own name and its folders are followed where they
- * lead. Asked by the server (`file/document.ts`); with no answer the `.kehikot/` rule still holds.
+ * lead; and which module owns each folder under `.kehikot/` (`module.folders`, 2.85.0), so a file
+ * there is read-only in its owner's name. Asked by the server (`file/document.ts`, `file/folders.ts`);
+ * with no answer the `.kehikot/` rule still holds, in generic words.
  *
  * ## `storage: true`
  *
- * For the same reason as Source: the page's `/api` calls must be same-origin, so
+ * The page's `/api` calls must be same-origin, so
  * no permissive CORS header ever lets another page read a file's contents or
  * reach the save.
  */

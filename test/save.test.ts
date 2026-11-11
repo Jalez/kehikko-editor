@@ -18,6 +18,7 @@ import { join } from 'node:path'
 
 import { MIXED_EOL, NOT_TEXT, NOT_UTF8, READ_ONLY_ON_DISK, REFUSED, open } from '../file/open.ts'
 import { setKnownDocument } from '../file/document.ts'
+import { setKnownFolders } from '../file/folders.ts'
 import { documentSentence, ownedSentence } from '../file/owned.ts'
 import { CONFLICT, NO_BASE, save } from '../file/save.ts'
 import { MAX_BYTES } from '../file/shape.ts'
@@ -79,7 +80,10 @@ describe('where a save may write', () => {
 describe('files other modules own are read-only, with a sentence naming the owner', () => {
   /* The document provider as the host would answer it: any name, any folder, never spelled in the code. */
   const MANUSCRIPT = { name: 'Manuscript', folder: '.kehikot/manuscript', main: 'main.tex' }
-  afterEach(() => setKnownDocument(null, Number.POSITIVE_INFINITY))
+  afterEach(() => {
+    setKnownDocument(null, Number.POSITIVE_INFINITY)
+    setKnownFolders({}, Number.POSITIVE_INFINITY)
+  })
   mkdirSync(join(root, '.kehikot', 'manuscript', 'thesis'), { recursive: true })
   mkdirSync(join(root, '.kehikot', 'notes'), { recursive: true })
   mkdirSync(join(root, 'elsewhere'), { recursive: true })
@@ -115,10 +119,13 @@ describe('files other modules own are read-only, with a sentence naming the owne
     expect(opened('elsewhere/chapter.tex').readOnly).toBeNull()
   })
 
-  test('Notes’ store, also through a link with a plain name', () => {
+  test('a declared folder’s store names its owner, also through a link with a plain name', () => {
+    /* As the host would answer `module.folders`: any name, never spelled in the code. */
+    setKnownFolders({ notes: { name: 'Jottings', says: 'The project’s jottings.' } }, Number.POSITIVE_INFINITY)
     for (const at of ['.kehikot/notes/notes.json', 'plain-notes.json']) {
       const seen = opened(at)
-      expect(seen.readOnly).toContain('Notes')
+      expect(seen.readOnly).toContain('belongs to Jottings')
+      expect(seen.readOnly).toContain('The project’s jottings')
       expect(save(root, at, '{"x":1}\n', seen.version)).toEqual({ kind: 'refused', error: seen.readOnly! })
     }
     expect(readFileSync(join(root, '.kehikot', 'notes', 'notes.json'), 'utf8')).toBe('{}\n')
@@ -128,7 +135,10 @@ describe('files other modules own are read-only, with a sentence naming the owne
     expect(opened('.kehikot/project.json').readOnly).toContain('Kehikot app')
     mkdirSync(join(root, '.kehikot', 'someone'), { recursive: true })
     writeFileSync(join(root, '.kehikot', 'someone', 'data.json'), '[]\n')
-    expect(opened('.kehikot/someone/data.json').readOnly).toContain('someone')
+    expect(opened('.kehikot/someone/data.json').readOnly).toContain('the someone module')
+    /* A folder nobody in use declares is said generically; the app's own folders stay the app's. */
+    expect(opened('.kehikot/notes/notes.json').readOnly).toContain('belongs to the notes module')
+    expect(ownedSentence('kehikko', new Map([['kehikko', { name: 'Impostor', says: 'x' }]]))).toContain('belongs to the Kehikot app')
   })
 })
 

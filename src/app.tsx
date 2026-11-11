@@ -519,7 +519,7 @@ function Comparison({ diskText, mine, onSaveOver, onReload }: { diskText: string
 function Nothing({ pointed, recent, onOpen }: { pointed: boolean; recent: string[]; onOpen(relative: string): void }) {
   return (
     <div className="flex flex-col gap-2 p-3 text-xs text-muted-foreground" data-testid="nothing">
-      <p>{pointed ? 'Opening…' : 'Nothing on the canvas points at a file. Press one in Explorer or Source to edit it here.'}</p>
+      <p>{pointed ? 'Opening…' : 'Nothing on the canvas points at a file. Point at one from another module on the canvas to edit it here.'}</p>
       {!pointed && recent.length ? (
         <div className="flex flex-col items-start gap-1">
           <span>Recent files</span>
