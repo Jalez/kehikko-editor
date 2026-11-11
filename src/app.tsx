@@ -322,7 +322,7 @@ export function Screen({
   if (cover) return <Cover state={cover} name="Editor" onRetry={() => wanted && void openFile(wanted)} />
 
   return (
-    <div className="flex h-full min-w-0 flex-col text-sm">
+    <div data-kehikot-page className="flex h-full min-w-0 flex-col text-sm">
       {footed ? null : <Bar state={state} items={items} where={where} onPress={onPress} onSave={() => void save()} />}
       <Notices
         state={state}
