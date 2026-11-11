@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import { setKnownDocument } from '../file/document.ts'
+import { setKnownFolders } from '../file/folders.ts'
 
 /*
  * Tests never reach the real machine: no host is asked about a project (the doors'
@@ -17,6 +18,7 @@ delete process.env.EDITOR_ROOTS
 
 /* Nobody keeps a document unless a test says so: the host is never asked who does. */
 setKnownDocument(null, Number.POSITIVE_INFINITY)
+setKnownFolders({}, Number.POSITIVE_INFINITY)
 
 /* A document for the tests that render one; the pure tests do not care. */
 GlobalRegistrator.register()

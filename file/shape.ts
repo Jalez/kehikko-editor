@@ -12,7 +12,7 @@ export const MAX_PATH = 4096
 /**
  * The largest file this app opens for editing, and the largest it will save.
  *
- * One megabyte. Source shows a quarter of that and moves its window; an editor
+ * One megabyte. A viewer can show a window of a larger file; an editor
  * cannot show a window, because saving a window would cut the rest of the file
  * off. So a file is opened whole or not at all, and the bound is where whole
  * stops being something a container on a canvas can hold, ship as JSON and keep
@@ -94,7 +94,7 @@ export function bytes(n: number): string {
 
 /**
  * Whether a chunk of a file is not text: a NUL byte (git's rule), or more than a
- * tenth control characters that no text file uses. Source's rule, unchanged.
+ * tenth control characters that no text file uses.
  */
 export function binary(chunk: Uint8Array): boolean {
   if (chunk.length === 0) return false

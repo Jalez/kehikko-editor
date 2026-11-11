@@ -3,6 +3,7 @@ import { establishBuild, mintTicket, refuseTicket, type Reply } from 'kehikot-mo
 
 import { configuredRoots, rootOf } from './file/confine.ts'
 import { lookForDocument } from './file/document.ts'
+import { lookForFolders } from './file/folders.ts'
 import { describe, editingIn, report } from './file/editing.ts'
 import { locate, open, stampOf } from './file/open.ts'
 import { save } from './file/save.ts'
@@ -200,8 +201,8 @@ export async function answer(
     if (!project.ok) return project.reply
     const at = str(query.get('path'), MAX_PATH)
     if (!at) return bad('Nothing named a file to open.')
-    /* Whose document folders are read-only in its name: asked of the host, cached, never thrown. */
-    await lookForDocument(ID)
+    /* Whose folders are read-only in whose name: asked of the host, cached, never thrown. */
+    await Promise.all([lookForDocument(ID), lookForFolders(ID)])
     const opened = open(project.root, at, 'page')
     if (opened.kind === 'refused') return bad(opened.error, 404)
     return ok({ ok: true, root: project.root, ...opened })
@@ -220,7 +221,7 @@ export async function answer(
     if (!project.ok) return project.reply
     const at = str(body.path, MAX_PATH)
     if (!at) return bad('Nothing named a file to save.')
-    await lookForDocument(ID)
+    await Promise.all([lookForDocument(ID), lookForFolders(ID)])
     const saved = save(project.root, at, body.text, body.base)
     if (saved.kind === 'refused') return bad(saved.error, 409)
     if (saved.kind === 'conflict') return { status: 409, body: { ok: false, ...saved } }
