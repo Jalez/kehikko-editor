@@ -155,3 +155,13 @@
     font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
   }
 }
+
+/*
+ * The container's background off (Settings › Appearance; protocol 2.82.0, `data-kehikot-background`
+ * on <html>, put there by the protocol's client): the editor paints nothing behind the text, so the
+ * host's canvas shows through. The gutter keeps its surface: with wrapping off, long lines scroll
+ * under it and the line numbers would be drawn over them.
+ */
+html[data-kehikot-background='none'] .cm-editor {
+  background-color: transparent;
+}
