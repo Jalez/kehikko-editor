@@ -13,7 +13,7 @@
  *     `id_ed25519`, and anything ending `.pem` or `.key`.
  *
  * Every other dot-file is shown — `.gitignore`, `.github/…`, and the project's
- * own `.kehikot/…`, where a paper's source lives. The path is judged twice by
+ * own `.kehikot/…`, where modules keep a project's data. The path is judged twice by
  * its caller: as it was written and as it resolved, so a link with a plain name
  * is judged by what it leads to.
  *
