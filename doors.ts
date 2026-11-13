@@ -5,6 +5,7 @@ import { configuredRoots, rootOf } from './file/confine.ts'
 import { lookForDocument } from './file/document.ts'
 import { lookForFolders } from './file/folders.ts'
 import { describe, editingIn, report } from './file/editing.ts'
+import { answerIntel } from './file/intel.ts'
 import { locate, open, stampOf } from './file/open.ts'
 import { save } from './file/save.ts'
 import { MAX_BYTES, MAX_PATH, bytes, str } from './file/shape.ts'
@@ -195,6 +196,10 @@ export async function answer(
   /* Every /api route is the page's. Marked as a ticket refusal, so a page older than this server reloads. */
   const stranger = refuseTicket(ticket, TICKET, STRANGER)
   if (stranger) return stranger
+
+  /* Quick open, search, definition and symbols (file/intel.ts), on the same ticket and the same project rule. */
+  const intel = await answerIntel(method, path, query, body, pageRoot)
+  if (intel) return intel
 
   if (path === '/api/open' && method === 'GET') {
     const project = await pageRoot(str(query.get('projectPath'), MAX_PATH))
