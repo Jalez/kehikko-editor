@@ -40,6 +40,12 @@ export interface Tab {
   /** Project-relative once the server opened it; null while opening, or when it could not be. */
   relative: string | null
   preview: boolean
+  /**
+   * Opened because the canvas pointed at it, and still a preview. It stands for the place the canvas was
+   * pointing at, so it goes when the person moves to a place that points at nothing (`leave`); a tab the
+   * person kept (edited, double-clicked) is theirs and stays.
+   */
+  pointed: boolean
   /** Opened by an agent and not yet touched by the person. */
   agent: boolean
   state: EditorState
@@ -69,6 +75,8 @@ export type TabsAction =
       path: string
       relative?: string | null
       preview: boolean
+      /** Opened because the canvas points at it. */
+      pointed?: boolean
       agent?: boolean
       focus: boolean
       reveal?: Reveal | null
@@ -87,6 +95,8 @@ export type TabsAction =
   | { type: 'view'; id: string; view: TabView }
   | { type: 'revealed'; id: string }
   | { type: 'reset' }
+  /** The person moved to a place the canvas points at nothing in: what the old place's pointing opened goes; every tab they kept stays. */
+  | { type: 'leave' }
 
 const samePath = (tab: Tab, path: string, relative?: string | null) =>
   tab.path === path || (relative !== undefined && relative !== null && tab.relative === relative) || (tab.relative !== null && tab.relative === path)
@@ -156,6 +166,7 @@ export function reduceTabs(state: TabsState, action: TabsAction): TabsState {
         const tab: Tab = {
           ...existing,
           preview: existing.preview && action.preview,
+          pointed: (existing.pointed || Boolean(action.pointed)) && existing.preview && action.preview,
           agent: existing.agent && Boolean(action.agent),
           reveal: action.reveal ?? existing.reveal,
         }
@@ -168,6 +179,7 @@ export function reduceTabs(state: TabsState, action: TabsAction): TabsState {
         path: action.path,
         relative: action.relative ?? null,
         preview: action.preview,
+        pointed: action.preview && Boolean(action.pointed),
         agent: Boolean(action.agent),
         state: EMPTY,
         generation: 0,
@@ -230,6 +242,10 @@ export function reduceTabs(state: TabsState, action: TabsAction): TabsState {
       if (!state.tabs.some((tab) => tab.id === action.id)) return state
       const next = { ...state, active: action.id, used: used(state.used, action.id) }
       return action.by === 'person' ? update(next, action.id, (tab) => (tab.agent ? { ...tab, agent: false } : tab)) : next
+    }
+    case 'leave': {
+      const going = state.tabs.filter((tab) => tab.preview && tab.pointed && !tabDirty(tab)).map((tab) => tab.id)
+      return going.length ? closeTabs(state, going) : state
     }
     case 'pin':
       return update(state, action.id, (tab) => (tab.preview || tab.agent ? { ...tab, preview: false, agent: false } : tab))
