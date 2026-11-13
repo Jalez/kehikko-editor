@@ -947,10 +947,12 @@ export function Screen({
         const opened: string[] = []
         const before = now.current.tabs.length
         const ids = new Map<string, string>()
+        /* In the order given, to the right of the person's tab, as several files opened at once are. */
+        let at = now.current.tabs.findIndex((tab) => tab.id === now.current.active) + 1
         for (const one of order.files) {
           const reveal = one.line ? { line: one.line, column: one.column ?? 1, ...(one.endLine ? { endLine: one.endLine, endColumn: one.endColumn ?? 1 } : {}) } : null
           const existing = tabFrom(one.relative)?.id
-          const created = openPath(absolute(one.relative), { preview: Boolean(one.preview), focus: false, agent: true, reveal, relative: one.relative })
+          const created = openPath(absolute(one.relative), { preview: Boolean(one.preview), focus: false, agent: true, reveal, relative: one.relative, ...(existing ? {} : { at: at++ }) })
           ids.set(one.relative, existing ?? created)
           opened.push(one.relative)
         }

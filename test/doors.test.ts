@@ -42,7 +42,7 @@ const q = (fields: Record<string, string>) => new URLSearchParams(fields)
 async function rpc(method: string, params: Record<string, unknown> = {}) {
   const reply = await answer('POST', '/mcp', none, { jsonrpc: '2.0', id: 1, method, params }, null)
   return reply?.body as {
-    result?: { tools?: { name: string; annotations?: { readOnlyHint?: boolean } }[]; content?: { text: string }[]; isError?: boolean }
+    result?: { tools?: { name: string; annotations?: { readOnlyHint?: boolean; destructiveHint?: boolean } }[]; content?: { text: string }[]; isError?: boolean }
   }
 }
 
