@@ -118,11 +118,12 @@ describe('the doors', () => {
   })
 })
 
-describe('the agent door only reads', () => {
-  test('its one tool says it only reads', async () => {
+describe('the agent door never writes a file', () => {
+  test('its tools read, or act on tabs; none writes', async () => {
     const tools = (await rpc('tools/list')).result?.tools ?? []
-    expect(tools.map((tool) => tool.name)).toEqual(['editing'])
-    for (const tool of tools) expect(tool.annotations?.readOnlyHint).toBe(true)
+    expect(tools.map((tool) => tool.name)).toEqual(['editing', 'tabs', 'open_files', 'focus_tab', 'close_tabs', 'commands'])
+    for (const tool of tools) expect(tool.annotations?.destructiveHint).toBe(false)
+    for (const name of ['editing', 'tabs', 'commands']) expect(tools.find((tool) => tool.name === name)?.annotations?.readOnlyHint).toBe(true)
   })
 
   test('asking it to save, write or anything else is refused, and the file is untouched', async () => {

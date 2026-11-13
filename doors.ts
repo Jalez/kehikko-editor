@@ -198,12 +198,12 @@ function tools() {
   ]
 }
 
-async function projectRoot(args: Record<string, unknown>): Promise<{ root: string; moved: string | null }> {
+async function projectRoot(args: Record<string, unknown>, by: 'agent' | 'vouched' = 'agent'): Promise<{ root: string; moved: string | null }> {
   const named = str(doorContext(args).project, MAX_PATH)
   if (!named) throw new Error(DOOR_PROJECT_SAYS.unnamed)
   const project = await hostResolve(named)
   if (!project.ok) throw new Error(project.why)
-  const root = rootOf(project.path)
+  const root = rootOf(project.path, by)
   if (!root) throw new Error(DOOR_PROJECT_SAYS.notProject(project.path) + NOT_READ_AGENT)
   return { root, moved: project.movedFrom ? DOOR_PROJECT_SAYS.followed(project.movedFrom, project.path) : null }
 }
@@ -231,7 +231,9 @@ function saidDelivered(delivered: Delivered, what: string): string {
 async function call(name: string, args: Record<string, unknown>): Promise<string> {
   if (name === 'commands') return describeCommands()
   if (!['editing', 'tabs', 'open_files', 'focus_tab', 'close_tabs'].includes(name)) throw new Error(`There is no tool "${name.slice(0, 60)}" here. ${READ_ONLY_DOOR}`)
-  const { root, moved } = await projectRoot(args)
+  /* Tabs may be ordered for a project the host vouches for before the Editor's page was ever opened on
+     it: they are held for that page. Reading what is open needs a page to have said it. */
+  const { root, moved } = await projectRoot(args, ['open_files', 'focus_tab', 'close_tabs', 'tabs'].includes(name) ? 'vouched' : 'agent')
   const withMove = (answer: string) => (moved ? `${answer}\n\n${moved}` : answer)
   if (name === 'editing') return withMove(describe(editingIn(root), args.text === true))
   if (name === 'tabs') return withMove(describeTabs(root, kehikkoOf(args)))

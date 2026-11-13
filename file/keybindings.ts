@@ -2,8 +2,6 @@ import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 
-import { LIMITS, settingsDeclarationSchema, type SettingField } from 'kehikot-module-protocol'
-
 import defaults from '../src/commands/keybindings.default.json'
 import { COMMANDS } from '../src/commands/list.ts'
 import { keymap, sayKey } from '../src/commands/keys.ts'
@@ -18,24 +16,8 @@ import { keymap, sayKey } from '../src/commands/keys.ts'
  * settings door, so this file has one writer.
  */
 
-export const KEYBINDINGS_KEY = 'keybindings'
-
-/** The setting, as the manifest declares it. */
-export const SETTINGS: SettingField[] = settingsDeclarationSchema.parse([
-  {
-    key: KEYBINDINGS_KEY,
-    label: 'Keyboard shortcuts (JSON)',
-    description:
-      'Your own keys over the Editor’s defaults, in VS Code’s keybindings.json shape: [{ "key": "cmd+e", "command": "palette.show" }]. '
-      + '"-command" takes a default away. Open keyboard shortcuts (JSON) in the Editor checks it as you type.',
-    type: 'string',
-    default: '',
-    scope: 'machine',
-  },
-])
-
-/** The longest list the setting holds: the protocol's bound on a text setting. */
-export const MAX_KEYBINDINGS_TEXT = LIMITS.SETTING_TEXT
+export { KEYBINDINGS_KEY, MAX_KEYBINDINGS_TEXT, SETTINGS } from '../src/commands/settings.ts'
+import { MAX_KEYBINDINGS_TEXT } from '../src/commands/settings.ts'
 
 /** Where this computer's Editor settings are kept. `KEHIKOT_EDITOR_DIR` moves it (the tests). */
 export function editorDir(env: Record<string, string | undefined> = process.env, platform: string = process.platform): string {

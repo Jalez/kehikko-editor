@@ -1,6 +1,6 @@
 import { MANIFEST_KIND, PROTOCOL, manifestSchema, type Manifest } from 'kehikot-module-protocol'
 
-import { SETTINGS } from './file/keybindings.ts'
+import { SETTINGS } from './src/commands/settings.ts'
 import { MAX_BYTES, bytes } from './file/shape.ts'
 import pkg from './package.json'
 
