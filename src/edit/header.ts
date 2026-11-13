@@ -11,7 +11,9 @@ import { dirty, saveRefusal, type EditorState } from './state.ts'
  *    refuses. Reload and Revert throw unsaved work away, so they ask first.
  *  - **Go**: Recent files, which opens one here (a press, not a passage: the
  *    Editor never points the canvas).
- *  - **View**: Wrap lines.
+ *  - **View**: Wrap lines, Search in project (a view beside the text).
+ *  - **Start**: the command palette, Go to file, Go to symbol in project and the keyboard shortcuts —
+ *    each the same command its key runs (`commands/list.ts`).
  *
  * The host draws them and relays presses; the page owns every bit of state and
  * declares the whole list again whenever any of it changes.
@@ -31,7 +33,17 @@ function reason(text: string | null): string | null {
   return text === null ? null : text.length > LIMITS.REASON ? `${text.slice(0, LIMITS.REASON - 1)}…` : text
 }
 
-export function headerItems(state: EditorState, recent: readonly string[], wrap: boolean): HeaderItem[] {
+/** How the header reads a command's key, and whether Search in project is showing. */
+export interface HeaderExtras {
+  search?: boolean
+  keyOf?: (command: string) => string | null
+}
+
+export function headerItems(state: EditorState, recent: readonly string[], wrap: boolean, extras: HeaderExtras = {}): HeaderItem[] {
+  const shortcut = (command: string, fallback?: string) => {
+    const said = extras.keyOf?.(command) ?? fallback ?? null
+    return said && said.length <= 32 ? { shortcut: said } : {}
+  }
   const open = state.file !== null
   const unsaved = dirty(state)
   const items: unknown[] = [
@@ -40,7 +52,7 @@ export function headerItems(state: EditorState, recent: readonly string[], wrap:
       id: 'save',
       label: 'Save',
       icon: 'check',
-      shortcut: '⌘S',
+      ...shortcut('editor.save', '⌘S'),
       pinned: true,
       state: state.saving ? 'busy' : 'idle',
       disabled: state.saving ? null : reason(saveRefusal(state)),
@@ -62,6 +74,13 @@ export function headerItems(state: EditorState, recent: readonly string[], wrap:
       disabled: unsaved ? null : 'There are no unsaved changes to revert.',
     },
     { kind: 'toggle', id: 'wrap', label: 'Wrap lines', checked: wrap },
+    /* How the module is set up and what it starts (the header, not the footer): a view beside the text, and the pickers. */
+    { kind: 'toggle', id: 'search', label: 'Search in project', checked: extras.search === true },
+    { kind: 'run', id: 'palette.show', label: 'Command palette', ...shortcut('palette.show') },
+    { kind: 'run', id: 'quickOpen.file', label: 'Go to file', ...shortcut('quickOpen.file') },
+    { kind: 'run', id: 'workspace.goToSymbol', label: 'Go to symbol in project', ...shortcut('workspace.goToSymbol') },
+    { kind: 'run', id: 'keybindings.open', label: 'Keyboard shortcuts', ...shortcut('keybindings.open') },
+    { kind: 'run', id: 'keybindings.openJson', label: 'Open keyboard shortcuts (JSON)' },
   ]
   if (recent.length) {
     items.push({

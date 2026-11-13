@@ -1,5 +1,6 @@
 import { MANIFEST_KIND, PROTOCOL, manifestSchema, type Manifest } from 'kehikot-module-protocol'
 
+import { SETTINGS } from './src/commands/settings.ts'
 import { MAX_BYTES, bytes } from './file/shape.ts'
 import pkg from './package.json'
 
@@ -30,7 +31,8 @@ export const PREFERRED_PORT = 8030
  * - Overwrite a file that changed on disk since the edit began.
  * - Write anything under `.kehikot/`: each module there is the only writer of its
  *   folder (a document that takes edits as proposals, notes, the host's own records).
- * - Write for an agent: its MCP door only reads.
+ * - Write for an agent: its MCP door never writes a file. It opens files as tabs, focuses a tab and
+ *   closes saved tabs — never one with unsaved changes.
  *
  * ## `partless`
  *
@@ -68,15 +70,18 @@ export const MANIFEST: Manifest = manifestSchema.parse({
   icon: 'lucide:file-pen',
   version: VERSION,
   summary:
-    'Edit the file the canvas points at: explicit save, refused when the file changed on disk, never under .kehikot/.',
+    'Edit files in tabs: explicit save, refused when a file changed on disk; go to definition, search, never under .kehikot/.',
   tags: ['code', 'writing'],
   guidance:
-    'Editor is the container the person edits a file in. It follows the canvas passage, and the person saves '
-    + 'explicitly; nothing there is saved for them. Its MCP door only reads: call `editing` with the project to learn '
-    + 'which file they have open and whether they have unsaved changes (text: true returns those changes). It cannot '
-    + 'write. Edit files with your own tools — and when the person has unsaved changes in the file you are about to '
-    + 'change, tell them: the Editor will refuse their save and offer a reload or a comparison. Files under .kehikot/ '
-    + `are read-only there. Files over ${bytes(MAX_BYTES)} and binary files are not opened.`,
+    'Editor is the container the person edits files in, as tabs. Nothing is saved for them: they save explicitly. Its MCP '
+    + 'door never writes a file. tabs says which tabs are open and which have unsaved changes; editing (text: true) returns '
+    + 'the active tab’s unsaved text. open_files opens files as tabs, at a line or a selected range, in the background '
+    + '(focus asks for one to be active when the person has no unsaved changes there); focus_tab and close_tabs act on '
+    + 'tabs, and close only saved ones. Use them to show the person the code you are talking about. Edit files with your '
+    + 'own tools, and when the person has unsaved changes in a file you change, tell them: their save will be refused and '
+    + `offered a reload or a comparison. Files under .kehikot/ are read-only there; files over ${bytes(MAX_BYTES)} and binary `
+    + 'files are not opened.',
+  agentSays: 'Open files as tabs in the Editor to show the person code (open_files), and see which tabs they have open and unsaved (tabs).',
   entry: '/app',
   /* What its content belongs to (protocol 2.29.0): one mode per scope, the default first. */
   modes: [
@@ -85,7 +90,7 @@ export const MANIFEST: Manifest = manifestSchema.parse({
   mcp: {
     url: '/mcp',
     transport: 'http',
-    about: 'Which file the person has open in the Editor, and whether they have unsaved changes. Read-only.',
+    about: 'The tabs the person has open in the Editor and which are unsaved; open files as tabs, focus or close saved ones. Never writes a file.',
   },
   extensions: { emits: [], consumes: [] },
   reacts: ['passage'],
@@ -97,6 +102,7 @@ export const MANIFEST: Manifest = manifestSchema.parse({
   declares: {
     protocol: `>=${PROTOCOL} <${PROTOCOL + 1}`,
     uses: ['state:keep', 'services:read'],
+    settings: SETTINGS,
     storage: true,
     prompt: false,
   },

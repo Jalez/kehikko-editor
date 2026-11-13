@@ -14,6 +14,7 @@ import { setKnownFolders } from '../file/folders.ts'
  */
 process.env.KEHIKOT_ORIGINS = 'http://127.0.0.1:9'
 process.env.KEHIKOT_MODULES_DIR = mkdtempSync(join(tmpdir(), 'editor-registry-'))
+process.env.KEHIKOT_EDITOR_DIR = mkdtempSync(join(tmpdir(), 'editor-machine-'))
 delete process.env.EDITOR_ROOTS
 
 /* Nobody keeps a document unless a test says so: the host is never asked who does. */

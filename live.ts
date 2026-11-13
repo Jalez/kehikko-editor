@@ -4,6 +4,8 @@ import { basename, dirname } from 'node:path'
 
 import { events, publish, watching } from 'kehikot-module-protocol/serve'
 
+import { ORDERS_PATH, ordersTopic } from './file/tabs.ts'
+
 /**
  * Telling the page that the file it has open changed on disk, over one held stream: the page never
  * asks on a clock (protocol 2.32.0, `events`/`subscribe`). What travels is that there IS news; the
@@ -124,6 +126,12 @@ export const watchedCount = (): number => watched.size
  */
 export const makeStream = (ticketOk: (ticket: string | null) => boolean, fileOf: (projectPath: string, path: string) => Promise<string | null>) =>
   events((path, query, ticket) => {
+    if (path === ORDERS_PATH) {
+      if (!ticketOk(ticket ?? query.get('ticket'))) return null
+      const projectPath = query.get('projectPath') ?? ''
+      if (!projectPath || projectPath.length > 4096) return null
+      return { topic: ordersTopic(projectPath) }
+    }
     if (path !== EVENTS_PATH) return null
     /* Not the page's: handed on to `answer`, which refuses it as it refuses every /api route without the ticket. */
     if (!ticketOk(ticket ?? query.get('ticket'))) return null

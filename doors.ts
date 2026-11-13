@@ -1,12 +1,15 @@
 import { DOOR_PROJECT_SAYS, doorContext } from 'kehikot-module-protocol'
-import { establishBuild, mintTicket, refuseTicket, type Reply } from 'kehikot-module-protocol/serve'
+import { establishBuild, mintTicket, refuseTicket, settingsDoor, type Reply } from 'kehikot-module-protocol/serve'
 
 import { configuredRoots, rootOf } from './file/confine.ts'
 import { lookForDocument } from './file/document.ts'
 import { lookForFolders } from './file/folders.ts'
 import { describe, editingIn, report } from './file/editing.ts'
+import { answerIntel } from './file/intel.ts'
 import { locate, open, stampOf } from './file/open.ts'
+import { SETTINGS, describeCommands, readKeybindings, writeKeybindings, KEYBINDINGS_KEY } from './file/keybindings.ts'
 import { save } from './file/save.ts'
+import { ORDER_FILES, describeTabs, done as orderDone, give, notePage, orderId, reportTabs, takeHeld, type OpenFile, type Order, type Delivered } from './file/tabs.ts'
 import { MAX_BYTES, MAX_PATH, bytes, str } from './file/shape.ts'
 import { resolveProject, type Resolve } from './host-ask.ts'
 import { makeStream, saved as told } from './live.ts'
@@ -38,6 +41,18 @@ export const BUILD = establishBuild({ version: VERSION, dir: import.meta.dirname
 
 /** Minted per process and printed into `/app`; only this app's own page holds it. */
 export const TICKET = mintTicket()
+
+/** The person's keyboard shortcuts, as a machine setting (`file/keybindings.ts`). */
+const settings = settingsDoor({
+  module: ID,
+  fields: SETTINGS,
+  read: () => {
+    const read = readKeybindings()
+    return { values: { [KEYBINDINGS_KEY]: read.text }, ...(read.problem ? { problem: read.problem } : {}) }
+  },
+  write: (_project, key, value) => (key === KEYBINDINGS_KEY ? writeKeybindings(value) : 'There is no such setting.'),
+  ticket: TICKET,
+})
 
 const ok = (body: unknown): Reply => ({ status: 200, body })
 const bad = (why: string, status = 400): Reply => ({ status, body: { ok: false, error: why } })
@@ -86,10 +101,19 @@ export const stream = makeStream(
  * The MCP door: read-only
  * ------------------------------------------------------------------ */
 
-/** What an agent is told when it asks this door to change anything. */
+/** What an agent is told when it asks this door to write. */
 export const READ_ONLY_DOOR =
-  'The Editor’s agent door only reads. It cannot save, write, revert or reload a file. Edit files with your own tools; '
-  + 'the person saves their own edits in the Editor.'
+  'The Editor’s agent door never writes a file. It cannot save, revert or reload one, and it never discards the person’s '
+  + 'edits: it opens files as tabs, focuses a tab and closes saved tabs. Edit files with your own tools; the person saves '
+  + 'their own edits in the Editor.'
+
+const PROJECT_ARG = { type: 'string', description: 'The absolute directory of the project. Required.' }
+const KEHIKKO_ARG = {
+  type: 'string',
+  description: 'Which kehikko’s Editor to act on, by its key or name, when the project has Editor containers on several. Absent: every Editor page open on the project.',
+}
+const READ = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false }
+const ACT = { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false }
 
 function tools() {
   return [
@@ -97,31 +121,193 @@ function tools() {
       name: 'editing',
       description:
         'Which file the person has open in the Editor container for a project, whether they have unsaved changes, and '
-        + 'why it is read-only when it is. With text: true, also the unsaved text in the editor. This is NOT the tool '
-        + 'for reading files (use your own reader) and there is no tool here for writing them: this door only reads.',
+        + 'why it is read-only when it is. With text: true, also the unsaved text in the active tab. This is NOT the tool '
+        + 'for reading files (use your own reader) and there is no tool here for writing them.',
+      inputSchema: {
+        type: 'object',
+        properties: { project: PROJECT_ARG, text: { type: 'boolean', description: 'Also return the unsaved text in the editor, when there is some.' } },
+        required: ['project'],
+      },
+      annotations: READ,
+    },
+    {
+      name: 'tabs',
+      description: 'The tabs open in the Editor for a project: which is active, which have unsaved changes, which are previews and which an agent opened.',
+      inputSchema: { type: 'object', properties: { project: PROJECT_ARG, kehikko: KEHIKKO_ARG }, required: ['project'] },
+      annotations: READ,
+    },
+    {
+      name: 'open_files',
+      description:
+        `Open one or more files of the project as tabs in the Editor (at most ${ORDER_FILES}), each optionally at a line `
+        + 'and column, or with a range selected. They open kept (not as previews, unless preview: true), marked as opened '
+        + 'by an agent, and in the background: the person keeps the tab they are on. focus names one of the files to make '
+        + 'active, which is done only when the active tab has no unsaved changes. With no Editor open on the project, the '
+        + 'files are held and open when it next opens. Never discards an edit; a file outside the project, missing, '
+        + 'binary or one agents may not read is refused in words.',
       inputSchema: {
         type: 'object',
         properties: {
-          project: { type: 'string', description: 'The absolute directory of the project. Required.' },
-          text: { type: 'boolean', description: 'Also return the unsaved text in the editor, when there is some.' },
+          project: PROJECT_ARG,
+          files: {
+            type: 'array',
+            minItems: 1,
+            maxItems: ORDER_FILES,
+            items: {
+              type: 'object',
+              properties: {
+                path: { type: 'string', description: 'The file: absolute, or relative to the project.' },
+                line: { type: 'integer', minimum: 1, description: 'The line to show, from 1.' },
+                column: { type: 'integer', minimum: 1, description: 'The column on that line, from 1.' },
+                endLine: { type: 'integer', minimum: 1, description: 'With endColumn: select from line/column to here.' },
+                endColumn: { type: 'integer', minimum: 1 },
+                preview: { type: 'boolean', description: 'Open as a preview, replaced by the next preview. Default false.' },
+              },
+              required: ['path'],
+            },
+          },
+          focus: { type: 'string', description: 'One of the files to make the active tab (only when the active tab is unedited).' },
+          kehikko: KEHIKKO_ARG,
         },
-        required: ['project'],
+        required: ['project', 'files'],
       },
-      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+      annotations: ACT,
+    },
+    {
+      name: 'focus_tab',
+      description: 'Make an open tab the active one. Done only when the active tab has no unsaved changes; otherwise said.',
+      inputSchema: { type: 'object', properties: { project: PROJECT_ARG, path: { type: 'string' }, kehikko: KEHIKKO_ARG }, required: ['project', 'path'] },
+      annotations: ACT,
+    },
+    {
+      name: 'close_tabs',
+      description: 'Close tabs that are saved. A tab with unsaved changes is never closed: it is named in the answer, and stays.',
+      inputSchema: {
+        type: 'object',
+        properties: { project: PROJECT_ARG, paths: { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 60 }, kehikko: KEHIKKO_ARG },
+        required: ['project', 'paths'],
+      },
+      annotations: ACT,
+    },
+    {
+      name: 'commands',
+      description: 'The Editor’s commands (go to definition, go to file, search in project, close tab, …) with the keys that run them on this computer. Read-only.',
+      inputSchema: { type: 'object', properties: {} },
+      annotations: READ,
     },
   ]
 }
 
-async function call(name: string, args: Record<string, unknown>): Promise<string> {
-  if (name !== 'editing') throw new Error(`There is no tool "${name.slice(0, 60)}" here. ${READ_ONLY_DOOR}`)
+async function projectRoot(args: Record<string, unknown>, by: 'agent' | 'vouched' = 'agent'): Promise<{ root: string; moved: string | null }> {
   const named = str(doorContext(args).project, MAX_PATH)
   if (!named) throw new Error(DOOR_PROJECT_SAYS.unnamed)
   const project = await hostResolve(named)
   if (!project.ok) throw new Error(project.why)
-  const root = rootOf(project.path)
+  const root = rootOf(project.path, by)
   if (!root) throw new Error(DOOR_PROJECT_SAYS.notProject(project.path) + NOT_READ_AGENT)
-  const answer = describe(editingIn(root), args.text === true)
-  return project.movedFrom ? `${answer}\n\n${DOOR_PROJECT_SAYS.followed(project.movedFrom, project.path)}` : answer
+  return { root, moved: project.movedFrom ? DOOR_PROJECT_SAYS.followed(project.movedFrom, project.path) : null }
+}
+
+const positive = (value: unknown) => (typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 10_000_000 ? value : undefined)
+
+/** A file an agent named, checked as a file the agent may open: inside, there, text, not withheld. */
+function agentFile(root: string, raw: unknown): { ok: true; relative: string } | { ok: false; why: string } {
+  const at = str(raw, MAX_PATH)
+  if (!at) return { ok: false, why: 'A file was not named.' }
+  const opened = open(root, at, 'agent')
+  if (opened.kind === 'refused') return { ok: false, why: `${at.slice(0, 200)}: ${opened.error}` }
+  return { ok: true, relative: opened.relative }
+}
+
+const kehikkoOf = (args: Record<string, unknown>) => str(args.kehikko, 128) || null
+
+function saidDelivered(delivered: Delivered, what: string): string {
+  if (delivered.kind === 'held') return `No Editor page is open on this project right now. ${what} held and open as tabs when the Editor is next opened (while it keeps running).`
+  if (delivered.kind === 'no-page') return 'No Editor page is open on this project right now, so there are no tabs to act on.'
+  if (delivered.kind === 'sent') return `Sent to the Editor page open on this project; it did not say back in time what it did. Call tabs to see.`
+  return ''
+}
+
+async function call(name: string, args: Record<string, unknown>): Promise<string> {
+  if (name === 'commands') return describeCommands()
+  if (!['editing', 'tabs', 'open_files', 'focus_tab', 'close_tabs'].includes(name)) throw new Error(`There is no tool "${name.slice(0, 60)}" here. ${READ_ONLY_DOOR}`)
+  /* Tabs may be ordered for a project the host vouches for before the Editor's page was ever opened on
+     it: they are held for that page. Reading what is open needs a page to have said it. */
+  const { root, moved } = await projectRoot(args, ['open_files', 'focus_tab', 'close_tabs', 'tabs'].includes(name) ? 'vouched' : 'agent')
+  const withMove = (answer: string) => (moved ? `${answer}\n\n${moved}` : answer)
+  if (name === 'editing') return withMove(describe(editingIn(root), args.text === true))
+  if (name === 'tabs') return withMove(describeTabs(root, kehikkoOf(args)))
+
+  if (name === 'open_files') {
+    const raw = Array.isArray(args.files) ? args.files : []
+    if (!raw.length) throw new Error('Name at least one file: files: [{ path }].')
+    if (raw.length > ORDER_FILES) throw new Error(`At most ${ORDER_FILES} files at once.`)
+    const files: OpenFile[] = []
+    const refused: string[] = []
+    for (const one of raw) {
+      const entry = (one && typeof one === 'object' ? one : { path: one }) as Record<string, unknown>
+      const checked = agentFile(root, entry.path)
+      if (!checked.ok) {
+        refused.push(checked.why)
+        continue
+      }
+      files.push({
+        relative: checked.relative,
+        ...(positive(entry.line) ? { line: positive(entry.line) } : {}),
+        ...(positive(entry.column) ? { column: positive(entry.column) } : {}),
+        ...(positive(entry.endLine) ? { endLine: positive(entry.endLine) } : {}),
+        ...(positive(entry.endColumn) ? { endColumn: positive(entry.endColumn) } : {}),
+        ...(entry.preview === true ? { preview: true } : {}),
+      })
+    }
+    const refusedSaid = refused.length ? `\nRefused:\n${refused.map((one) => `- ${one}`).join('\n')}` : ''
+    if (!files.length) throw new Error(`Nothing was opened.${refusedSaid}`)
+    let focus: string | null = null
+    if (args.focus !== undefined) {
+      const checked = agentFile(root, args.focus)
+      focus = checked.ok && files.some((one) => one.relative === checked.relative) ? checked.relative : null
+    }
+    const order: Order = { id: orderId(), kind: 'open', files, focus, kehikko: kehikkoOf(args) }
+    const delivered = await give(root, order)
+    if (delivered.kind !== 'done') return withMove(`${saidDelivered(delivered, files.length === 1 ? `${files[0]!.relative} is` : `${files.length} files are`)}${refusedSaid}`)
+    const did = delivered.done
+    const lines = [
+      did.opened?.length ? `Opened as tabs: ${did.opened.join(', ')}.` : 'Nothing new was opened.',
+      did.focused ? `${did.focused} is the active tab.` : did.background ? 'They opened in the background: the person’s active tab has unsaved changes, so it stays in front.' : 'They opened in the background; the person’s active tab stays in front.',
+      ...(did.refused ?? []).map((one) => `Not opened: ${one.relative} — ${one.why}`),
+    ]
+    return withMove(lines.join('\n') + refusedSaid)
+  }
+
+  if (name === 'focus_tab') {
+    const checked = agentFile(root, args.path)
+    if (!checked.ok) throw new Error(checked.why)
+    const delivered = await give(root, { id: orderId(), kind: 'focus', relative: checked.relative, kehikko: kehikkoOf(args) })
+    if (delivered.kind !== 'done') return withMove(saidDelivered(delivered, ''))
+    const did = delivered.done
+    if (did.focused) return withMove(`${did.focused} is the active tab.`)
+    return withMove((did.refused ?? []).map((one) => `${one.relative}: ${one.why}`).join('\n') || 'Nothing was focused.')
+  }
+
+  /* close_tabs */
+  const raw = Array.isArray(args.paths) ? args.paths.slice(0, 60) : []
+  if (!raw.length) throw new Error('Name at least one tab: paths: ["src/a.ts"].')
+  const paths: string[] = []
+  for (const one of raw) {
+    const at = str(one, MAX_PATH)
+    const where = at ? locate(root, at, 'agent') : null
+    if (where?.ok) paths.push(where.relative)
+  }
+  if (!paths.length) throw new Error('None of those is a file of this project that agents may name.')
+  const delivered = await give(root, { id: orderId(), kind: 'close', paths, kehikko: kehikkoOf(args) })
+  if (delivered.kind !== 'done') return withMove(saidDelivered(delivered, ''))
+  const did = delivered.done
+  return withMove(
+    [
+      did.closed?.length ? `Closed: ${did.closed.join(', ')}.` : 'Nothing was closed.',
+      ...(did.kept ?? []).map((one) => `Kept open: ${one.relative} — ${one.why}`),
+    ].join('\n'),
+  )
 }
 
 interface Rpc {
@@ -140,8 +326,9 @@ async function mcp(rpc: Rpc): Promise<Reply> {
       capabilities: { tools: {} },
       serverInfo: { name: ID, version: VERSION },
       instructions:
-        'The container a person edits a file in, on a canvas. This door only reads: it says which file is open and '
-        + 'whether the person has unsaved changes. It cannot save or write; edit files with your own tools.',
+        'The container a person edits files in, as tabs, on a canvas. This door says which tabs are open and which have '
+        + 'unsaved changes, opens files as tabs (open_files), focuses or closes saved tabs, and lists the commands and their '
+        + 'keys. It never writes a file and never discards an edit; edit files with your own tools.',
     })
   }
   if (typeof rpc.method === 'string' && rpc.method.startsWith('notifications/')) return { status: 202, body: null }
@@ -192,9 +379,33 @@ export async function answer(
 
   if (!path.startsWith('/api/')) return null
 
+  /* The settings door (2.15.0): the host's Settings, and this page with its ticket, read and change the person's keys. */
+  const settingsSaid = await settings(method, path, query, body, ticket)
+  if (settingsSaid) return settingsSaid
+
   /* Every /api route is the page's. Marked as a ticket refusal, so a page older than this server reloads. */
   const stranger = refuseTicket(ticket, TICKET, STRANGER)
   if (stranger) return stranger
+
+  /* The orders held for a project while no page was open, handed to the page that opened (`file/tabs.ts`). */
+  if (path === '/api/orders/held' && method === 'POST') {
+    if (!body) return bad('That was not a request.')
+    const project = await pageRoot(str(body.projectPath, MAX_PATH))
+    if (!project.ok) return project.reply
+    notePage(project.root, str(body.projectPath, MAX_PATH))
+    return ok({ ok: true, orders: takeHeld(project.root) })
+  }
+
+  /* What a page did with an agent's order (`file/tabs.ts`). */
+  if (path === '/api/orders/done' && method === 'POST') {
+    if (!body || typeof body.id !== 'string' || body.id.length > 64) return bad('That was not a request.')
+    orderDone(body.id, (body.done && typeof body.done === 'object' ? body.done : {}) as never)
+    return ok({ ok: true })
+  }
+
+  /* Quick open, search, definition and symbols (file/intel.ts), on the same ticket and the same project rule. */
+  const intel = await answerIntel(method, path, query, body, pageRoot)
+  if (intel) return intel
 
   if (path === '/api/open' && method === 'GET') {
     const project = await pageRoot(str(query.get('projectPath'), MAX_PATH))
@@ -235,7 +446,8 @@ export async function answer(
     if (!body) return bad('That was not a request.')
     const project = await pageRoot(str(body.projectPath, MAX_PATH))
     if (!project.ok) return project.reply
-    const refused = report(project.root, body)
+    notePage(project.root, str(body.projectPath, MAX_PATH))
+    const refused = report(project.root, body) ?? reportTabs(project.root, body)
     return refused ? bad(refused, 413) : ok({ ok: true })
   }
 

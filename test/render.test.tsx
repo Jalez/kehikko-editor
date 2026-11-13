@@ -31,10 +31,10 @@ function host(over: Partial<Host> = {}): Host {
 }
 
 /** CodeMirror does not lay out without a layout engine; a textarea stands in, with the same props. */
-function Plain({ text, generation, readOnly, onChange, onSave }: CodeEditorProps) {
+function Plain({ tab, text, generation, readOnly, onChange, onSave }: CodeEditorProps) {
   return (
     <textarea
-      key={generation}
+      key={`${tab}:${generation}`}
       aria-label="code"
       defaultValue={text}
       readOnly={readOnly}
@@ -155,16 +155,16 @@ describe('the editor page', () => {
     expect((screen.getByLabelText('code') as HTMLTextAreaElement).readOnly).toBe(true)
   })
 
-  test('with unsaved changes, a new passage does not take the file away; it asks', async () => {
+  test('with unsaved changes, a new passage opens beside it and never takes the edit away', async () => {
     const { api } = fakeApi({ '/work/thesis/a.ts': { text: 'one\n' }, '/work/thesis/b.ts': { text: 'bee\n' } })
     const { rerender } = render(<Screen host={host()} api={api} Code={Plain} />)
     await waitFor(() => screen.getByLabelText('code'))
     fireEvent.change(screen.getByLabelText('code'), { target: { value: 'edited\n' } })
     rerender(<Screen host={host({ passage: passage('/work/thesis/b.ts') })} api={api} Code={Plain} />)
-    await waitFor(() => expect(screen.getByTestId('pending').textContent).toContain('b.ts'))
-    expect(screen.getByTestId('name').textContent).toBe('a.ts')
-    fireEvent.click(screen.getByText('Open it'))
     await waitFor(() => expect(screen.getByTestId('name').textContent).toBe('b.ts'))
+    expect(screen.getAllByTestId('tab').map((tab) => tab.textContent)).toEqual(['a.ts', 'b.ts'])
+    fireEvent.click(screen.getAllByTestId('tab')[0]!)
+    await waitFor(() => expect((screen.getByLabelText('code') as HTMLTextAreaElement).value).toBe('edited\n'))
   })
 
   test('unsaved changes are kept as a draft per project and file, and come back', async () => {
@@ -184,11 +184,11 @@ describe('the editor page', () => {
     expect(screen.getByTestId('said').textContent).toContain('unsaved changes are back')
   })
 
-  test('the header it declares has Save, Reload, Revert and Wrap, and none for agents', async () => {
+  test('the header it declares has Save, Reload, Revert, Wrap, Search and the pickers, and none for agents', async () => {
     const declared: { id: string; agents: boolean }[][] = []
     const { api } = fakeApi({ '/work/thesis/a.ts': { text: 'one\n' } })
     render(<Screen host={host({ header: (items) => void declared.push(items as { id: string; agents: boolean }[]) })} api={api} Code={Plain} />)
-    await waitFor(() => expect(declared.at(-1)?.map((item) => item.id)).toEqual(['save', 'reload', 'revert', 'wrap', 'recent']))
+    await waitFor(() => expect(declared.at(-1)?.map((item) => item.id)).toEqual(['save', 'reload', 'revert', 'wrap', 'search', 'palette.show', 'quickOpen.file', 'workspace.goToSymbol', 'keybindings.open', 'keybindings.openJson', 'recent']))
     expect(declared.at(-1)?.every((item) => !item.agents)).toBe(true)
   })
 

@@ -218,7 +218,7 @@ function real(path: string): string | null {
  * this app's own source to somebody who thought they were asking about their
  * project.
  */
-export function rootOf(asked: string | null | undefined, by: 'page' | 'agent' = 'agent'): string | null {
+export function rootOf(asked: string | null | undefined, by: 'page' | 'agent' | 'vouched' = 'agent'): string | null {
   if (!asked || !isAbsolute(asked)) return null
   const realRoot = real(resolve(asked))
   if (realRoot === null || !isDirectory(realRoot)) return null
@@ -241,6 +241,9 @@ export function rootOf(asked: string | null | undefined, by: 'page' | 'agent' = 
     remember(realRoot)
     return realRoot
   }
+  /* A project the host has just vouched for, for an agent's order to open tabs there: never a home
+     folder or a whole disk (above), and not remembered, so it opens nothing else to agents. */
+  if (by === 'vouched') return realRoot
   return known.has(realRoot) ? realRoot : null
 }
 

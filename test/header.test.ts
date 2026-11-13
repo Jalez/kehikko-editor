@@ -6,9 +6,20 @@ import { EMPTY, reduce, type OpenedFile } from '../src/edit/state.ts'
 const file: OpenedFile = { path: '/p/a.ts', relative: 'a.ts', text: 'x', version: 'v1', eol: '\n', language: null, readOnly: null, hidden: false }
 
 describe('the header', () => {
-  test('Save, Reload and Revert in Run; Wrap in View; recent files in Go', () => {
-    const items = headerItems(reduce(EMPTY, { type: 'opened', file }), ['a.ts', 'docs/b.md'], false)
-    expect(items.map((item) => `${item.kind}:${item.id}`)).toEqual(['run:save', 'run:reload', 'run:revert', 'toggle:wrap', 'go:recent'])
+  test('Save, Reload and Revert in Run; Wrap and Search in View; the pickers and shortcuts as runs; recent files in Go', () => {
+    const items = headerItems(reduce(EMPTY, { type: 'opened', file }), ['a.ts', 'docs/b.md'], false, { search: true, keyOf: (id) => (id === 'palette.show' ? '⇧⌘P' : null) })
+    expect(items.map((item) => `${item.kind}:${item.id}`)).toEqual([
+      'run:save', 'run:reload', 'run:revert', 'toggle:wrap', 'toggle:search',
+      'run:palette.show', 'run:quickOpen.file', 'run:workspace.goToSymbol', 'run:keybindings.open', 'run:keybindings.openJson', 'go:recent',
+    ])
+    expect(items.find((item) => item.id === 'search')).toMatchObject({ checked: true })
+    expect(items.find((item) => item.id === 'palette.show')).toMatchObject({ shortcut: '⇧⌘P' })
+  })
+
+  test('every header run is a command the keyboard reaches too', async () => {
+    const { COMMAND_IDS } = await import('../src/commands/list.ts')
+    const runs = headerItems(EMPTY, [], false).filter((item) => item.kind === 'run' && !['save', 'reload', 'revert'].includes(item.id))
+    for (const item of runs) expect(COMMAND_IDS.has(item.id)).toBe(true)
   })
 
   test('no item is pressable by agents: an agent never saves through the Editor', () => {

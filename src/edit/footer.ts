@@ -15,9 +15,14 @@ import { dirty, type EditorState } from './state.ts'
  */
 const cut = (text: string, most: number) => (text.length > most ? `${text.slice(0, most - 1)}…` : text)
 
-export function footerItems(state: EditorState): FooterItem[] {
+export function footerItems(state: EditorState, tabs: { tabs: number; unsaved: number } = { tabs: 0, unsaved: 0 }): FooterItem[] {
   const file = state.file
-  if (!file) return footerItemsSchema.parse([{ kind: 'text', id: 'file', text: 'No file open' }])
+  if (!file) {
+    const none: unknown[] = [{ kind: 'text', id: 'file', text: 'No file open' }]
+    if (state.trouble) none.push({ kind: 'text', id: 'trouble', text: cut(state.trouble, LIMITS.FOOTER_TEXT), level: 'critical', align: 'center', tooltip: cut(state.trouble, LIMITS.FOOTER_TOOLTIP) })
+    else if (state.said) none.push({ kind: 'text', id: 'said', text: cut(state.said, LIMITS.FOOTER_TEXT), align: 'center', optional: true })
+    return footerItemsSchema.parse(none)
+  }
   const unsaved = dirty(state)
   const items: unknown[] = [{ kind: 'text', id: 'file', text: cut(file.relative, LIMITS.FOOTER_TEXT), tooltip: cut(file.path, LIMITS.FOOTER_TOOLTIP) }]
   const status =
@@ -36,6 +41,10 @@ export function footerItems(state: EditorState): FooterItem[] {
   const changedShown = state.disk.state === 'changed' && unsaved
   if (state.trouble && !changedShown) items.push({ kind: 'text', id: 'trouble', text: cut(state.trouble, LIMITS.FOOTER_TEXT), level: 'critical', align: 'center', tooltip: cut(state.trouble, LIMITS.FOOTER_TOOLTIP) })
   else if (state.said) items.push({ kind: 'text', id: 'said', text: cut(state.said, LIMITS.FOOTER_TEXT), align: 'center', optional: true })
+  if (tabs.tabs > 1) {
+    const words = `${tabs.tabs} tabs${tabs.unsaved ? `, ${tabs.unsaved} unsaved` : ''}`
+    items.push({ kind: 'text', id: 'tabs', text: words, align: 'end', optional: true, ...(tabs.unsaved ? { level: 'warn' } : {}) })
+  }
   if (file.language) items.push({ kind: 'text', id: 'language', text: cut(file.language, LIMITS.FOOTER_TEXT), align: 'end', optional: true })
   return footerItemsSchema.parse(items)
 }
