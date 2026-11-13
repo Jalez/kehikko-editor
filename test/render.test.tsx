@@ -215,8 +215,12 @@ describe('the editor page', () => {
     )
     const view = render(draw())
     await waitFor(() => expect(declared.at(-1)?.find((item) => item.id === 'wrap')?.checked).toBe(true))
+    /* The page also keeps its own tabs, once the file has opened (when, is not this test's business):
+     * let that write happen first, so what the press wrote is the only thing left to look at. */
+    await waitFor(() => expect(wrote.some(([next]) => (next as { tabs?: unknown }).tabs)).toBe(true))
+    wrote.length = 0
     act(() => void press.current({ item: 'wrap', value: false }))
-    expect(wrote).toEqual([[{ wrap: false, other: 'x' }, 300]])
+    expect(wrote).toEqual([[{ wrap: false, other: 'x', tabs: expect.anything() }, 300]])
     view.rerender(draw())
     await waitFor(() => expect(declared.at(-1)?.find((item) => item.id === 'wrap')?.checked).toBe(false))
   })
