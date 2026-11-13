@@ -1,11 +1,10 @@
 import { afterEach, describe, expect, test } from 'bun:test'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { FILE_DRAG_TYPE, type Passage } from 'kehikot-module-protocol'
+import type { Passage } from 'kehikot-module-protocol'
 
 import { Screen, type Host } from '../src/app.tsx'
-import { COMMAND_IDS } from '../src/commands/list.ts'
 import type { CodeEditorProps, EditorHandle } from '../src/view/code-editor.tsx'
-import type { Api, Definition, Opened, Order, OrderDone } from '../src/wire/api.ts'
+import type { Api, Opened, Order, OrderDone } from '../src/wire/api.ts'
 
 /**
  * Switching places: the tab the canvas pointed at in the place before does not pose as this place's
