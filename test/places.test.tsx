@@ -5,7 +5,7 @@ import { FILE_DRAG_TYPE, type Passage } from 'kehikot-module-protocol'
 import { Screen, type Host } from '../src/app.tsx'
 import { COMMAND_IDS } from '../src/commands/list.ts'
 import type { CodeEditorProps, EditorHandle } from '../src/view/code-editor.tsx'
-import type { Api, Definition, Opened, Order, OrderDone, SearchAnswer } from '../src/wire/api.ts'
+import type { Api, Definition, Opened, Order, OrderDone } from '../src/wire/api.ts'
 
 /**
  * Switching places: the tab the canvas pointed at in the place before does not pose as this place's
