@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { compare, hunks } from '@/edit/diff'
 import { footerItems } from '@/edit/footer'
+import { placeKey } from '@/edit/place'
 import { headerItems, recentPressed } from '@/edit/header'
 import { keepDraft, keyOf, noteRecent, readDraftFor, readRecent } from '@/edit/kept'
 import { dirty, saveRefusal, type EditorState } from '@/edit/state'
@@ -34,7 +35,7 @@ type Drop = { file: FileDrag; at: PagePoint }
 
 /** What the screen needs from the host. A plain object, so a test can draw the screen without one. */
 export type Host = Pick<ProtocolHost, 'where' | 'project' | 'projectPath' | 'projectId' | 'passage' | 'header'> &
-  Partial<Pick<ProtocolHost, 'footer' | 'drawsFooter' | 'kept' | 'read' | 'remember' | 'ready' | 'kehikko'>>
+  Partial<Pick<ProtocolHost, 'footer' | 'drawsFooter' | 'kept' | 'read' | 'remember' | 'ready' | 'kehikko' | 'epic' | 'parts' | 'context'>>
 
 const MAC = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(`${(navigator as { platform?: string }).platform ?? ''} ${navigator.userAgent ?? ''}`)
 
@@ -162,9 +163,9 @@ export function Screen({
 
   /** Open a file as a tab, or focus the tab it has. The text is read when its tab is first shown. */
   const openPath = useCallback(
-    (path: string, options: { preview: boolean; focus: boolean; reveal?: Reveal | null; at?: number | null; agent?: boolean; relative?: string | null; view?: Tab['view'] }) => {
+    (path: string, options: { preview: boolean; pointed?: boolean; focus: boolean; reveal?: Reveal | null; at?: number | null; agent?: boolean; relative?: string | null; view?: Tab['view'] }) => {
       const id = newId()
-      dispatch({ type: 'open', id, path, relative: options.relative ?? null, preview: options.preview, focus: options.focus, reveal: options.reveal ?? null, at: options.at ?? null, agent: options.agent ?? false, view: options.view ?? null })
+      dispatch({ type: 'open', id, path, relative: options.relative ?? null, preview: options.preview, pointed: options.pointed, focus: options.focus, reveal: options.reveal ?? null, at: options.at ?? null, agent: options.agent ?? false, view: options.view ?? null })
       return id
     },
     [],
@@ -232,8 +233,22 @@ export function Screen({
   const wanted = passage?.path ?? null
   useEffect(() => {
     if (!projectPath || !wanted) return
-    openPath(wanted, { preview: true, focus: true })
+    openPath(wanted, { preview: true, pointed: true, focus: true })
   }, [projectPath, wanted, openPath])
+
+  /* Moving to another place (a space; from an older host its epic and picked parts): what the canvas
+     pointed at in the one before is not this place's file. If this place points at nothing, that tab goes
+     — and the empty state shows when it was the last. The tabs the person kept are their working set and
+     stay. A place that does point at something opens it as it always did, in the preview's place. */
+  const picked = (host.parts ?? []).filter((part) => part.picked).map((part) => part.id)
+  const placeNow = placeKey({ epic: host.epic, parts: picked, space: host.context?.space ?? null })
+  const placeWas = useRef<string | null>(null)
+  useEffect(() => {
+    const was = placeWas.current
+    placeWas.current = placeNow
+    if (was !== null && was !== placeNow && !wanted) dispatch({ type: 'leave' })
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- a switch, not a pointing
+  }, [placeNow])
 
   /* ---- Drafts, the watch, and what agents are told ---------------- */
 
@@ -1425,7 +1440,7 @@ function Comparison({ diskText, mine, onSaveOver, onReload }: { diskText: string
 function Nothing({ pointed, recent, onOpen, keyOf }: { pointed: boolean; recent: string[]; onOpen(relative: string): void; keyOf(command: string): string | null }) {
   return (
     <div className="flex flex-col gap-2 p-3 text-xs text-muted-foreground" data-testid="nothing">
-      <p>{pointed ? 'Opening…' : 'No file is open. Point at one from another module on the canvas, drop one here, or go to a file.'}</p>
+      <p>{pointed ? 'Opening…' : 'No file is open here. Point at one from another module on the canvas, drop one here, or go to a file.'}</p>
       {!pointed ? (
         <ul className="flex flex-col gap-0.5">
           {(['quickOpen.file', 'palette.show', 'search.showProject', 'workspace.goToSymbol'] as const).map((id) => (
