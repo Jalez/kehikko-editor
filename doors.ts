@@ -5,6 +5,7 @@ import { configuredRoots, rootOf } from './file/confine.ts'
 import { lookForDocument } from './file/document.ts'
 import { lookForFolders } from './file/folders.ts'
 import { describe, editingIn, report } from './file/editing.ts'
+import { answerIntel } from './file/intel.ts'
 import { locate, open, stampOf } from './file/open.ts'
 import { SETTINGS, describeCommands, readKeybindings, writeKeybindings, KEYBINDINGS_KEY } from './file/keybindings.ts'
 import { save } from './file/save.ts'
@@ -399,6 +400,10 @@ export async function answer(
     orderDone(body.id, (body.done && typeof body.done === 'object' ? body.done : {}) as never)
     return ok({ ok: true })
   }
+
+  /* Quick open, search, definition and symbols (file/intel.ts), on the same ticket and the same project rule. */
+  const intel = await answerIntel(method, path, query, body, pageRoot)
+  if (intel) return intel
 
   if (path === '/api/open' && method === 'GET') {
     const project = await pageRoot(str(query.get('projectPath'), MAX_PATH))
