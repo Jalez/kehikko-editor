@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test } from 'bun:test'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { Passage } from 'kehikot-module-protocol'
+import { waitForWrites } from 'kehikot-module-protocol/testing'
 
 import { Screen, type Host } from '../src/app.tsx'
 import type { CodeEditorProps } from '../src/view/code-editor.tsx'
@@ -217,8 +218,7 @@ describe('the editor page', () => {
     await waitFor(() => expect(declared.at(-1)?.find((item) => item.id === 'wrap')?.checked).toBe(true))
     /* The page also keeps its own tabs, once the file has opened (when, is not this test's business):
      * let that write happen first, so what the press wrote is the only thing left to look at. */
-    await waitFor(() => expect(wrote.some(([next]) => (next as { tabs?: unknown }).tabs)).toBe(true))
-    wrote.length = 0
+    await waitForWrites(wrote, ([next]) => Boolean((next as { tabs?: unknown }).tabs), { clear: true })
     act(() => void press.current({ item: 'wrap', value: false }))
     expect(wrote).toEqual([[{ wrap: false, other: 'x', tabs: expect.anything() }, 300]])
     view.rerender(draw())
