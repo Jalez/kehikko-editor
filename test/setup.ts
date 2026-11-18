@@ -1,3 +1,6 @@
+/* The shared test preload (protocol 2.104.0): the running app's environment never reaches a test. */
+import 'kehikot-module-protocol/testing/setup'
+
 import { GlobalRegistrator } from '@happy-dom/global-registrator'
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
